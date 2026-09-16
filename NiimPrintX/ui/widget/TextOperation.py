@@ -1,11 +1,9 @@
 import tkinter as tk
-from tkinter import ttk
-from tkinter import font as tk_font
 import tkinter.messagebox as messagebox
-from wand.image import Image as WandImage
-from wand.drawing import Drawing as WandDrawing
-from wand.color import Color
+from PIL import ImageTk
 
+from NiimPrintX.nimmy.text_render import render_text_image
+from ..component.DesignStore import save_design
 from devtools import debug
 
 
@@ -16,37 +14,9 @@ class TextOperation:
 
     # Function to add text to canvas and make it draggable
     def create_text_image(self, font_props, text):
-        with WandDrawing() as draw:
-            # draw.font = font_props["font_name"]
-            draw.font_family = font_props["family"]
-            draw.font_size = font_props["size"]
-            if font_props["slant"] == 'italic':
-                draw.font_style = 'italic'
-            if font_props["weight"] == 'bold':
-                draw.font_weight = 700
-            if font_props["underline"]:
-                draw.text_decoration = 'underline'
-            draw.text_kerning = font_props["kerning"]
-            draw.fill_color = Color('black')  # Set font color to black
-            draw.resolution = (300, 300)  # 300 DPI for high quality text rendering
-            metrics = draw.get_font_metrics(WandImage(width=1, height=1), text, multiline=True)
-            text_width = int(metrics.text_width) + 5
-            text_height = int(metrics.text_height) + 5
+        image = render_text_image(self.config.os_system, font_props, text)
+        return ImageTk.PhotoImage(image)
 
-            # Create a new WandImage
-            with WandImage(width=text_width, height=text_height, background=Color('transparent')) as img:
-                # Position text at top using ascender for proper multi-line rendering
-                draw.text(x=2, y=int(metrics.ascender), body=text)
-                draw(img)
-
-                # Ensure the image is in RGBA format
-                img.format = 'png'
-                img.alpha_channel = 'activate'  # Ensure alpha channel is active
-                img_blob = img.make_blob('png32')  # Use 'png32' for RGBA
-                # img.save(filename="test.png")
-                # Convert to format displayable in Tkinter
-                tk_image = tk.PhotoImage(data=img_blob)
-                return tk_image
     def add_text_to_canvas(self):
         # Get the current text in the content_entry Text widget
         text = self.parent.content_entry.get("1.0", "end-1c")
@@ -68,6 +38,7 @@ class TextOperation:
             "bbox": None,
 
         }
+        save_design(self.config)
 
     def delete_text(self):
         if self.config.current_selected:
@@ -77,6 +48,7 @@ class TextOperation:
             del self.config.text_items[self.config.current_selected]
             self.config.current_selected = None
             self.parent.add_button.config(text="Add", command=self.add_text_to_canvas)
+            save_design(self.config)
 
     def select_text(self, event, text_id):
         self.deselect_text()
@@ -121,6 +93,7 @@ class TextOperation:
         self.config.canvas.itemconfig(text_id, image=tk_image)
         self.config.text_items[text_id]['font_image'] = tk_image
         self.update_bbox_and_handle(text_id)
+        save_design(self.config)
 
     def draw_bounding_box(self, event, text_id):
         bbox = self.config.canvas.create_rectangle(self.config.canvas.bbox(text_id),
@@ -138,8 +111,10 @@ class TextOperation:
         })
 
         self.config.canvas.tag_bind(text_id, "<Button1-Motion>", lambda e, tid=text_id: self.move_text(e, tid))
+        self.config.canvas.tag_bind(text_id, "<ButtonRelease-1>", lambda e: save_design(self.config))
         self.config.canvas.tag_bind(handle, "<Button1-Motion>", lambda e, tid=text_id: self.resize_text(e, tid))
         self.config.canvas.tag_bind(handle, "<Button-1>", lambda e: self.start_resize(e, text_id))
+        self.config.canvas.tag_bind(handle, "<ButtonRelease-1>", lambda e: save_design(self.config))
 
     def move_text(self, event, text_id):
         dx = event.x - self.config.text_items[text_id]["initial_x"]

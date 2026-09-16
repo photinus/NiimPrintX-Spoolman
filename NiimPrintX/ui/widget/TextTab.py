@@ -49,7 +49,8 @@ class TextTab:
         tk.Label(self.frame, text="Font Family", bg=default_bg).grid(row=1, column=0, sticky='w')
         self.font_family_dropdown = ttk.Combobox(self.frame, values=list(self.fonts.keys()))
         self.font_family_dropdown.grid(row=1, column=1, sticky='ew', padx=5)
-        self.font_family_dropdown.set("Arial")
+        font_settings = self.config.settings.get("font", {})
+        self.font_family_dropdown.set(font_settings.get("family", "Arial"))
         widget_name = "font_dropdown"
         self.font_family_dropdown.bind("<<ComboboxSelected>>",
                                        lambda event, w=widget_name: self.update_text_properties(event, w))
@@ -64,21 +65,24 @@ class TextTab:
         self.update_font_list()
 
         self.bold_var = tk.BooleanVar()
+        self.bold_var.set(font_settings.get("weight", "normal") == "bold")
         bold_button = tk.Checkbutton(self.frame, text="Bold", variable=self.bold_var, bg=default_bg,
                                      command=self.update_text_properties)
         bold_button.grid(row=1, column=2, sticky='w')
         self.italic_var = tk.BooleanVar()
+        self.italic_var.set(font_settings.get("slant", "roman") == "italic")
         italic_button = tk.Checkbutton(self.frame, text="Italic", variable=self.italic_var, bg=default_bg,
                                        command=self.update_text_properties)
         italic_button.grid(row=1, column=3, sticky='w')
         self.underline_var = tk.BooleanVar()
+        self.underline_var.set(font_settings.get("underline", False))
         underline_button = tk.Checkbutton(self.frame, text="Underline", variable=self.underline_var, bg=default_bg,
                                           command=self.update_text_properties)
         underline_button.grid(row=1, column=4, sticky='w')
 
         tk.Label(self.frame, text="Font Size", bg=default_bg).grid(row=2, column=0, sticky='w')
         self.size_var = tk.IntVar()
-        self.size_var.set(16)
+        self.size_var.set(font_settings.get("size", 16))
         self.font_size_dropdown = tk.Spinbox(self.frame, from_=4, to=100, textvariable=self.size_var,
                                              highlightbackground=default_bg, command=self.update_text_properties)
         self.font_size_dropdown.bind('<FocusOut>', self.update_text_properties)
@@ -86,7 +90,7 @@ class TextTab:
 
         tk.Label(self.frame, text="Font Kerning", bg=default_bg).grid(row=3, column=0, sticky='w')
         self.kerning_var = tk.StringVar()
-        self.kerning_var.set('0')
+        self.kerning_var.set(str(font_settings.get("kerning", "0")))
         self.font_kerning_dropdown = tk.Spinbox(self.frame, from_=0, to=20, increment=0.1, format="%.1f", textvariable=self.kerning_var,
                                              highlightbackground=default_bg, command=self.update_text_properties)
         self.font_kerning_dropdown.bind('<FocusOut>', self.update_text_properties)
@@ -115,6 +119,8 @@ class TextTab:
 
     def update_text_properties(self, event=None, widget_name=None):
         font_obj, font_props = self.get_font_properties()
+        self.config.settings["font"] = font_props
+        self.config.save_settings()
         content = self.content_entry.get("1.0", "end-1c")
         label_font = tk_font.Font(family=font_props['family'], size=14, weight=font_props['weight'],
                                   slant=font_props['slant'])
@@ -124,7 +130,7 @@ class TextTab:
             # self.config.canvas.itemconfig(self.config.current_selected, font=font_obj)
             # self.config.text_items[self.config.current_selected]['font'] = font_obj
             self.config.text_items[self.config.current_selected]['font_props'] = font_props
-            self.text_op.update_bbox_and_handle(self.config.current_selected)
+            self.text_op.update_canvas_text(self.config.current_selected)
 
         # if widget_name == "font_dropdown":
         #     self.bold_var.set(False)

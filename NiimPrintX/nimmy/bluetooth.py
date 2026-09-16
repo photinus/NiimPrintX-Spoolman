@@ -7,17 +7,25 @@ from .logger_config import get_logger
 logger = get_logger()
 
 
-async def find_device(device_name_prefix=None):
-    devices = await BleakScanner.discover()
+async def find_device(device_name_prefix=None, timeout=10):
+    try:
+        devices = await asyncio.wait_for(BleakScanner.discover(timeout=timeout), timeout=timeout + 2)
+    except asyncio.TimeoutError as exc:
+        raise BLEException("Bluetooth scan timed out. Check Bluetooth permissions and make sure the printer is awake.") from exc
+    matching_prefix = device_name_prefix.lower() if device_name_prefix else None
     for device in devices:
-        if device.name and device.name.lower().startswith(device_name_prefix.lower())  and len(device.metadata['uuids'])==0:
+        if device.name and (not matching_prefix or device.name.lower().startswith(matching_prefix)):
             return device
-    raise BLEException(f"Failed to find device {device_name_prefix}")
+    visible_names = ", ".join(device.name for device in devices if device.name) or "no named devices"
+    raise BLEException(f"Failed to find device {device_name_prefix}. Visible devices: {visible_names}")
 
 
-async def scan_devices(device_name=None):
+async def scan_devices(device_name=None, timeout=10):
     print("Scanning for devices...")
-    devices = await BleakScanner.discover()
+    try:
+        devices = await asyncio.wait_for(BleakScanner.discover(timeout=timeout), timeout=timeout + 2)
+    except asyncio.TimeoutError as exc:
+        raise BLEException("Bluetooth scan timed out. Check Bluetooth permissions and make sure the printer is awake.") from exc
     for device in devices:
         if device_name:
             if device.name and device_name.lower() in device.name.lower():
@@ -37,11 +45,11 @@ class BLETransport:
         # Automatically connect if address is provided during initialization
         if self.address:
             self.client = BleakClient(self.address)
-            if await self.client.connect():
+            await self.client.connect()
+            if self.client.is_connected:
                 logger.info(f"Connected to {self.address}")
                 return self
-            else:
-                raise BLEException(f"Failed to connect to the BLE device at {self.address}")
+            raise BLEException(f"Failed to connect to the BLE device at {self.address}")
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -53,8 +61,12 @@ class BLETransport:
         if self.client is None:
             self.client = BleakClient(address)
         if not self.client.is_connected:
-            return await self.client.connect()
-        return False
+            await self.client.connect()
+            return self.client.is_connected
+        return True
+
+    def is_connected(self):
+        return bool(self.client and self.client.is_connected)
 
     async def disconnect(self):
         if self.client and self.client.is_connected:

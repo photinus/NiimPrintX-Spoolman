@@ -4,7 +4,7 @@ import os
 import click
 
 from NiimPrintX.nimmy.bluetooth import find_device
-from NiimPrintX.nimmy.printer import PrinterClient
+from NiimPrintX.nimmy.printer import PrinterClient, EXTENDED_PROTOCOL_MODELS
 from NiimPrintX.nimmy.helper import print_info, print_error, print_success
 from NiimPrintX.nimmy.label_sizes import LABEL_SIZES
 from NiimPrintX.spoolman.client import SpoolmanClient
@@ -132,8 +132,11 @@ def print_command(base_url, spool_id, model, label_size, label_width_mm, label_h
     height_px = round(label_height_mm / 25.4 * print_dpi)
 
     image = build_spool_label_image(spool, width_px, height_px, include_qr=include_qr, base_url=client.root_url)
-    # PIL rotates counterclockwise, so a clockwise print orientation needs a negative angle.
-    image = image.rotate(-90, expand=True)
+    if model not in EXTENDED_PROTOCOL_MODELS:
+        # PIL rotates counterclockwise, so a clockwise print orientation needs a negative
+        # angle. B1-style presets are already stored roll-width-first, so they print
+        # correctly without this rotation -- see printer.py's EXTENDED_PROTOCOL_MODELS.
+        image = image.rotate(-90, expand=True)
 
     asyncio.run(_print(model, density, image, quantity))
 
@@ -143,7 +146,7 @@ async def _print(model, density, image, quantity):
     try:
         print_info("Starting print job")
         device = await find_device(model)
-        printer = PrinterClient(device)
+        printer = PrinterClient(device, model=model)
         if await printer.connect():
             print(f"Connected to {device.name}")
         await printer.print_image(image, density=density, quantity=quantity)

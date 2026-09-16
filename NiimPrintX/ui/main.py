@@ -12,8 +12,7 @@ from .widget.PrintOption import PrintOption
 
 from NiimPrintX.ui.widget.CanvasSelector import CanvasSelector
 from NiimPrintX.ui.widget.FileMenu import FileMenu
-
-from NiimPrintX.nimmy.printer import PrinterClient
+from NiimPrintX.ui.component.DesignStore import save_design
 
 import asyncio
 import threading
@@ -126,6 +125,8 @@ class LabelPrinterApp(tk.Tk):
 
     def on_close(self):
         if messagebox.askokcancel("Quit", "Do you want to quit?"):
+            save_design(self.app_config)
+            self.app_config.save_settings()
             self.destroy()
 
 if __name__ == "__main__":

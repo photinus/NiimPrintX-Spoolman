@@ -121,6 +121,37 @@ The GUI application allows users to design labels based on the label device and 
 python -m NiimPrintX.ui
 ```
 
+For local development, the included Makefile prepares the GUI environment and starts the app (macOS/Linux/WSL; requires `make`):
+
+```shell
+make macos-deps   # macOS only, installs native Tk/Cairo dependencies
+make setup
+make run-ui
+```
+
+You can also check the active Python/Tk setup with:
+
+```shell
+make doctor
+```
+
+For Bluetooth printer discovery, keep the printer awake and run:
+
+```shell
+make scan-b1
+```
+
+Then select `B1` in the GUI device dropdown and click `Connect`.
+
+To inspect the B1 Bluetooth service layout or roll RFID data:
+
+```shell
+make inspect-b1
+make rfid-b1
+```
+
+The GUI stores the last selected device, label size, text settings, and one autosaved design per device/label-size combination in its cache directory. Known RFID roll barcodes can also select the matching design automatically after connecting — for B1/B21, barcode `10262260` maps to `50mm x 30mm`.
+
 ## Spoolman Integration
 NiimPrintX can generate and print spool labels directly from a [Spoolman](https://github.com/Donkie/Spoolman) filament inventory server. A label shows the filament vendor/name, material, remaining weight, a color swatch, and (optionally) a QR code linking back to the spool.
 

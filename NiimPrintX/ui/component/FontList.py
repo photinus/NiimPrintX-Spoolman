@@ -4,9 +4,32 @@ import re
 from collections import defaultdict
 import os
 import sys
+from tkinter import font as tk_font
 
 
 def fonts():
+    try:
+        family_names = sorted(
+            family for family in tk_font.families()
+            if family and not family.startswith('.') and not family.startswith('System')
+        )
+        if family_names:
+            return {
+                family: {
+                    'family_name': family,
+                    'fonts': {
+                        family: {
+                            'name': family,
+                            'main': True,
+                            'variants': []
+                        }
+                    }
+                }
+                for family in family_names
+            }
+    except tk_font.TclError:
+        pass
+
     if hasattr(sys, '_MEIPASS'):
         base_path = sys._MEIPASS
         imagemagick_base_path = os.path.join(base_path, 'imagemagick')

@@ -28,5 +28,4 @@ rich==13.7.1
 setuptools==70.0.0
 six==1.16.0
 urllib3==2.8.0
-Wand==0.6.13
 wheel==0.38.1

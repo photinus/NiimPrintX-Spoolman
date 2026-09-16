@@ -1,5 +1,11 @@
 from PIL import Image, ImageTk
 
+try:
+    import qrcode
+except ImportError:  # pragma: no cover - optional dependency
+    qrcode = None
+
+from ..component.DesignStore import save_design
 from devtools import debug
 
 
@@ -23,6 +29,27 @@ class ImageOperation:
         new_height = int(img_height * scale_factor)
 
         resized_image = image.convert("RGBA").resize((new_width, new_height), Image.Resampling.LANCZOS)
+        self._place_image_item(resized_image)
+
+    def add_qr_placeholder(self):
+        """Drop a QR-code placeholder onto the canvas for a Spoolman label template.
+
+        Positioned/resized with the same handles as any other image; at print time the
+        Spoolman template renderer swaps this preview for a real QR sized to match
+        wherever this placeholder ends up (see NiimPrintX/spoolman/template.py).
+        """
+        if qrcode is None:
+            return
+        x1, y1, x2, y2 = self.config.canvas.bbox(self.config.bounding_box)
+        default_size = max(60, min(x2 - x1, y2 - y1) // 2)
+        qr = qrcode.QRCode(border=1, box_size=10)
+        qr.add_data("spoolman:preview")
+        qr.make(fit=True)
+        preview = qr.make_image(fill_color="black", back_color="white").convert("RGBA")
+        preview = preview.resize((default_size, default_size), Image.NEAREST)
+        self._place_image_item(preview, qr=True)
+
+    def _place_image_item(self, resized_image, qr=False):
         img_tk = ImageTk.PhotoImage(resized_image)
 
         # Add the image to the canvas
@@ -31,13 +58,17 @@ class ImageOperation:
             "image": img_tk,
             "original_image": resized_image,
             "bbox": None,
-            "handle": None
+            "handle": None,
+            "qr": qr
         }
 
         # Make the image draggable and resizable
         self.config.canvas.tag_bind(image_id, "<Button-1>",
                                     lambda event, img_id=image_id: self.select_image(event, img_id))
         self.config.canvas.tag_bind(image_id, "<Button1-Motion>", lambda e, img_id=image_id: self.move_image(e, img_id))
+        self.config.canvas.tag_bind(image_id, "<ButtonRelease-1>", lambda e: save_design(self.config))
+        save_design(self.config)
+        return image_id
 
     def start_image_resize(self, event, image_id):
         self.config.image_items[image_id]['initial_y'] = event.y
@@ -68,6 +99,7 @@ class ImageOperation:
             handle, "<Button1-Motion>", lambda e, img_id=image_id: self.resize_image(e, img_id)
         )
         self.config.canvas.tag_bind(handle, "<Button-1>", lambda e: self.start_image_resize(e, image_id))
+        self.config.canvas.tag_bind(handle, "<ButtonRelease-1>", lambda e: save_design(self.config))
 
     def deselect_image(self):
         """Deselect the current image."""
@@ -139,3 +171,4 @@ class ImageOperation:
             self.config.canvas.delete(self.config.image_items[self.config.current_selected_image]['handle'])
             del self.config.image_items[self.config.current_selected_image]
             self.config.current_selected_image = None
+            save_design(self.config)

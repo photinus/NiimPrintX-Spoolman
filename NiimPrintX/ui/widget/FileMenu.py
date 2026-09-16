@@ -7,6 +7,7 @@ from tkinter import filedialog, font
 import pickle
 from PIL import Image, ImageTk
 
+from ..component.DesignStore import save_design
 from devtools import debug
 class FileMenu:
     def __init__(self, root, parent, config):
@@ -25,6 +26,8 @@ class FileMenu:
 
     def on_close(self):
         if messagebox.askokcancel("Quit", "Do you want to quit?"):
+            save_design(self.config)
+            self.config.save_settings()
             self.root.quit()
 
     def save_to_file(self):
@@ -86,7 +89,7 @@ class FileMenu:
             self.root.canvas_selector.selected_device.set(data["device"].upper())
             self.root.canvas_selector.selected_label_size.set(data["current_label_size"])
             self.config.canvas.delete("all")
-            self.root.canvas_selector.update_canvas_size()
+            self.root.canvas_selector.update_canvas_size(restore_design=False)
             self.config.text_items = {}
             self.config.image_items = {}
 

@@ -111,7 +111,7 @@ async def _print(model, density, image, quantity, vertical_offset, horizontal_of
     try:
         print_info("Starting print job")
         device = await find_device(model)
-        printer = PrinterClient(device)
+        printer = PrinterClient(device, model=model)
         if await printer.connect():
             print(f"Connected to {device.name}")
         await printer.print_image(image, density=density, quantity=quantity, vertical_offset=vertical_offset,
@@ -141,7 +141,7 @@ def info_command(model):
 async def _info(model):
     try:
         device = await find_device(model)
-        printer = PrinterClient(device)
+        printer = PrinterClient(device, model=model)
         await printer.connect()
         device_serial = await printer.get_info(InfoEnum.DEVICESERIAL)
         software_version = await printer.get_info(InfoEnum.SOFTVERSION)
