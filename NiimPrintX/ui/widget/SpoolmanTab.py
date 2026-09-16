@@ -236,7 +236,15 @@ class SpoolmanTab:
         except ValueError as e:
             messagebox.showerror("Spoolman", str(e))
             return
-        self.root.print_option.show_image_preview(image)
+        self.root.print_option.show_image_preview(image, name=self._spool_display_name(spool))
+
+    @staticmethod
+    def _spool_display_name(spool):
+        filament = spool.get("filament") or {}
+        vendor = (filament.get("vendor") or {}).get("name") or ""
+        name = filament.get("name") or ""
+        label = " ".join(part for part in (vendor, name) if part).strip()
+        return label or f"Spool #{spool.get('id')}"
 
     def on_spool_selected(self, event=None):
         if self.editing_template:
@@ -265,13 +273,13 @@ class SpoolmanTab:
         if self.editing_template:
             self.template_toggle_button.config(text="Done editing template")
             self.template_tools.pack(anchor='w', pady=(0, 10))
-            self.root.select_design_subtab("text")
         else:
             self.template_toggle_button.config(text="Edit label template")
             self.template_tools.pack_forget()
         self._update_template_status()
-        if not self.editing_template:
-            self.on_spool_selected()
+        # Jumps into/out of the Design section and shows/hides the token +
+        # "Done editing template" toolbar there -- see LabelPrinterApp.set_template_editing.
+        self.root.set_template_editing(self.editing_template)
 
     def insert_template_token(self, token):
         self.root.select_design_subtab("text")

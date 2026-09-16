@@ -5,11 +5,12 @@ from tkinter import messagebox
 from .AppConfig import AppConfig
 from .widget.TextTab import TextTab
 from .widget.IconTab import IconTab
-from .widget.SpoolmanTab import SpoolmanTab
+from .widget.SpoolmanTab import SpoolmanTab, TEMPLATE_TOKENS
 from .widget.StatusBar import StatusBar
 from .widget.PrintOption import PrintOption
 from .widget.Sidebar import Sidebar
 from .component import theme
+from .component import RecentLabels
 from .component.RoundedButton import RoundedButton
 
 from NiimPrintX.ui.widget.CanvasSelector import CanvasSelector
@@ -117,7 +118,8 @@ class LabelPrinterApp(tk.Tk):
     def create_widgets(self):
         # Left nav rail: replaces the old Text/Icon/Spoolman Notebook tabs with
         # a persistent sidebar (Design merges Text+Icon; Spoolman stays separate).
-        self.sidebar = Sidebar(self, on_select=self.show_section)
+        self.sidebar = Sidebar(self, on_select=self.show_section, config=self.app_config,
+                               on_recent_select=self.open_recent_label)
         self.sidebar.pack(side=tk.LEFT, fill=tk.Y)
 
         right_col = tk.Frame(self, bg=theme.BG_CONTENT)
@@ -149,14 +151,30 @@ class LabelPrinterApp(tk.Tk):
         # editable/previewable surface Design and Spoolman have always shared) plus
         # a 296px side panel whose *contents* swap with the active section. --
         self.design_toolbar = tk.Frame(right_col, bg=theme.BG_CONTENT)
-        self.add_text_button = RoundedButton(self.design_toolbar, text="+ Add text", variant="primary",
+        toolbar_row1 = tk.Frame(self.design_toolbar, bg=theme.BG_CONTENT)
+        toolbar_row1.pack(side=tk.TOP, fill=tk.X)
+        self.add_text_button = RoundedButton(toolbar_row1, text="+ Add text", variant="primary",
                                              bg=theme.BG_CONTENT,
                                              command=lambda: self.select_design_subtab("text"))
-        self.add_icon_button = RoundedButton(self.design_toolbar, text="+ Add icon", variant="secondary",
+        self.add_icon_button = RoundedButton(toolbar_row1, text="+ Add icon", variant="secondary",
                                              bg=theme.BG_CONTENT,
                                              command=lambda: self.select_design_subtab("icon"))
         self.add_text_button.pack(side=tk.LEFT)
         self.add_icon_button.pack(side=tk.LEFT, padx=(8, 0))
+
+        # Shown only while editing a Spoolman label template (see
+        # set_template_editing) -- gives an obvious way to insert tokens and,
+        # crucially, to finish/save and get back to the Spoolman panel.
+        self.template_controls = tk.Frame(self.design_toolbar, bg=theme.BG_CONTENT)
+        tk.Label(self.template_controls, text="Editing template -- insert:", bg=theme.BG_CONTENT,
+                fg=theme.TEXT_MUTED, font=theme.FONT_LABEL).pack(side=tk.LEFT, padx=(0, 8))
+        for label, token in TEMPLATE_TOKENS:
+            RoundedButton(self.template_controls, text=label, variant="secondary", bg=theme.BG_CONTENT,
+                         command=lambda t=token: self.spoolman_tab.insert_template_token(t)).pack(side=tk.LEFT, padx=(0, 6))
+        RoundedButton(self.template_controls, text="QR code", variant="secondary", bg=theme.BG_CONTENT,
+                     command=lambda: self.spoolman_tab.insert_template_qr()).pack(side=tk.LEFT, padx=(0, 14))
+        RoundedButton(self.template_controls, text="Done editing template", variant="primary", bg=theme.BG_CONTENT,
+                     command=lambda: self.spoolman_tab.toggle_template_edit()).pack(side=tk.LEFT)
 
         self.body = tk.Frame(right_col, bg=theme.BG_CONTENT)
         body = self.body
@@ -226,6 +244,29 @@ class LabelPrinterApp(tk.Tk):
             self.text_tab.frame.tkraise()
             self.add_text_button.config(variant="primary")
             self.add_icon_button.config(variant="secondary")
+
+    def set_template_editing(self, active):
+        """Called by SpoolmanTab when entering/leaving Spoolman label-template
+        editing. Jumps into the Design section (where the canvas + token
+        toolbar live) while editing, and back to the Spoolman panel once
+        done -- so there's always an obvious "Done" button and an obvious
+        way back, instead of the editor opening with no visible exit."""
+        if active:
+            self.select_design_subtab("text")
+            self.show_section("design")
+            self.template_controls.pack(side=tk.TOP, fill=tk.X, pady=(10, 0))
+        else:
+            self.template_controls.pack_forget()
+            self.show_section("spoolman")
+
+    def open_recent_label(self, entry):
+        """Reopen a previously-printed label (sidebar 'Recent labels' click) in
+        the print-preview popup so it can be viewed and reprinted."""
+        image = RecentLabels.load_recent_label_image(self.app_config, entry)
+        if image is None:
+            messagebox.showerror("Recent labels", "That label's image is no longer available.")
+            return
+        self.print_option.show_image_preview(image, name=entry.get("name"))
 
     def start_asyncio_loop(self):
         asyncio.set_event_loop(self.async_loop)

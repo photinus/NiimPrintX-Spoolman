@@ -12,6 +12,7 @@ import tempfile
 from .PrinterOperation import PrinterOperation
 from NiimPrintX.nimmy.printer import EXTENDED_PROTOCOL_MODELS
 from ..component import theme
+from ..component import RecentLabels
 from ..component.RoundedButton import RoundedButton
 
 from devtools import debug
@@ -25,6 +26,8 @@ class PrintOption:
         self.frame = ttk.Frame(parent)
         self.preview_source = "canvas"
         self.preview_source_image = None
+        self.print_image = None
+        self._preview_name = None
         self.create_widgets()
         self.print_op = PrinterOperation(self.config)
         self.check_heartbeat()
@@ -252,14 +255,26 @@ class PrintOption:
     def display_image_in_popup(self, filename):
         self.print_image = Image.open(filename)
         self.preview_source = "canvas"
+        self._preview_name = self._derive_design_name()
         self._show_preview_popup()
 
-    def show_image_preview(self, image):
+    def show_image_preview(self, image, name=None):
         """Show the print preview/print dialog for an in-memory PIL image (e.g. a Spoolman label)."""
         self.print_image = image
         self.preview_source_image = image
         self.preview_source = "external"
+        self._preview_name = name or "Spoolman label"
         self._show_preview_popup()
+
+    def _derive_design_name(self):
+        """Best-effort display name for a Design-canvas print, used for the
+        Recent labels sidebar entry: the first non-empty line of text on the
+        label, since there's no separate "label name" field to draw from."""
+        for props in self.config.text_items.values():
+            first_line = (props.get("content") or "").strip().splitlines()
+            if first_line and first_line[0].strip():
+                return first_line[0].strip()[:32]
+        return "Label"
 
     def _show_preview_popup(self):
         # Create a new Toplevel window
@@ -412,4 +427,16 @@ class PrintOption:
         if result:
             # debug("print", result)
             self.root.after(0, lambda: self.root.status_bar.update_status(result))
+            self._save_recent_label()
         self.print_button.config(state=tk.NORMAL)
+
+    def _save_recent_label(self):
+        """Auto-save a Recent labels entry for a successful print."""
+        if self.print_image is None:
+            return
+        RecentLabels.add_recent_label(
+            self.config, self.print_image, self._preview_name,
+            device=self.config.device, label_size=self.config.current_label_size,
+        )
+        if hasattr(self.root, "sidebar"):
+            self.root.sidebar.refresh_recent()
