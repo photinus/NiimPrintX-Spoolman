@@ -20,6 +20,8 @@ class PrintOption:
         self.parent = parent
         self.config = config
         self.frame = ttk.Frame(parent)
+        self.preview_source = "canvas"
+        self.preview_source_image = None
         self.create_widgets()
         self.print_op = PrinterOperation(self.config)
         self.check_heartbeat()
@@ -173,12 +175,22 @@ class PrintOption:
             return img
 
     def display_image_in_popup(self, filename):
+        self.print_image = Image.open(filename)
+        self.preview_source = "canvas"
+        self._show_preview_popup()
+
+    def show_image_preview(self, image):
+        """Show the print preview/print dialog for an in-memory PIL image (e.g. a Spoolman label)."""
+        self.print_image = image
+        self.preview_source_image = image
+        self.preview_source = "external"
+        self._show_preview_popup()
+
+    def _show_preview_popup(self):
         # Create a new Toplevel window
         popup = tk.Toplevel(self.root)
         popup.title("Preview Image")
 
-        # Load the PNG image with PIL and convert to ImageTk
-        self.print_image = Image.open(filename)
         img_tk = ImageTk.PhotoImage(self.print_image)
 
         # Create a Label to display the image
@@ -264,14 +276,24 @@ class PrintOption:
         horizontal_offset = self.horizontal_offset.get()
         vertical_offset = self.vertical_offset.get()
         debug(horizontal_offset, vertical_offset)
-        self.print_image = self.export_to_png(output_filename=None,
-                                              horizontal_offset=horizontal_offset,
-                                              vertical_offset=vertical_offset)
+        if self.preview_source == "canvas":
+            self.print_image = self.export_to_png(output_filename=None,
+                                                  horizontal_offset=horizontal_offset,
+                                                  vertical_offset=vertical_offset)
+        else:
+            self.print_image = self._offset_image(self.preview_source_image, horizontal_offset, vertical_offset)
         img_tk = ImageTk.PhotoImage(self.print_image)
         self.image_label.config(image=img_tk)
         self.image_label.image = img_tk
         self.print_button.config(command=lambda: self.print_label(self.print_image, self.print_density.get(), self.print_copy.get()))
 
+    def _offset_image(self, image, horizontal_offset_mm, vertical_offset_mm):
+        """Shift an in-memory (non-canvas) preview image by the given mm offsets."""
+        h_px = self.mm_to_pixels(horizontal_offset_mm)
+        v_px = self.mm_to_pixels(vertical_offset_mm)
+        shifted = Image.new(image.mode, image.size, "white")
+        shifted.paste(image, (h_px, v_px))
+        return shifted
 
     def print_label(self, image, density, quantity):
         self.print_button.config(state=tk.DISABLED)
