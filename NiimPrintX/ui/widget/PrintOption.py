@@ -11,6 +11,8 @@ import tempfile
 
 from .PrinterOperation import PrinterOperation
 from NiimPrintX.nimmy.printer import EXTENDED_PROTOCOL_MODELS
+from ..component import theme
+from ..component.RoundedButton import RoundedButton
 
 from devtools import debug
 
@@ -52,12 +54,12 @@ class PrintOption:
         self.root.after(0, lambda: self.root.status_bar.update_status(connected))
 
     def create_widgets(self):
-        print_button = tk.Button(self.parent, text="Print", command=self.display_print)
-        print_button.pack(side=tk.RIGHT, padx=10)
-        save_image_button = tk.Button(self.parent, text="Save Image", command=self.save_image)
-        save_image_button.pack(side=tk.RIGHT, padx=10)
-        self.connect_button = tk.Button(self.parent, text="Connect", command=self.printer_connect)
-        self.connect_button.pack(side=tk.RIGHT, padx=10)
+        print_button = RoundedButton(self.parent, text="Print", command=self.display_print, variant="primary")
+        print_button.pack(side=tk.RIGHT, padx=6, pady=10)
+        save_image_button = RoundedButton(self.parent, text="Save image", command=self.save_image, variant="outline")
+        save_image_button.pack(side=tk.RIGHT, padx=6, pady=10)
+        self.connect_button = RoundedButton(self.parent, text="Connect", command=self.printer_connect, variant="outline")
+        self.connect_button.pack(side=tk.RIGHT, padx=6, pady=10)
 
     def printer_connect(self):
         self.connect_button.config(state=tk.DISABLED)

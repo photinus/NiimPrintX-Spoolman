@@ -1,0 +1,45 @@
+"""Warm Studio palette -- from the "NiimPrintX Refresh" design (option 1a).
+
+Centralises the colors/fonts used by the reskinned UI so every widget draws
+from the same values instead of hard-coding hex strings.
+"""
+
+BG_APP = "#EDEAE3"
+BG_CANVAS_AREA = "#EAE3D6"
+BG_SIDEBAR = "#F0E9DE"
+BG_CONTENT = "#F7F3EC"
+BG_CARD = "#FFFFFF"
+BG_FIELD = "#FBF9F5"
+
+ACCENT = "#BD5B34"
+ACCENT_DARK = "#8A3F1D"
+ACCENT_LIGHT = "#F1DCC9"
+
+TEXT_PRIMARY = "#2A2521"
+TEXT_MUTED = "#6B625A"
+TEXT_FAINT = "#8A8074"
+TEXT_ON_ACCENT = "#FFFFFF"
+
+BORDER = "#DDD3C2"
+BORDER_STRONG = "#C7BBA5"
+
+DANGER_BG = "#F6E1DB"
+DANGER_TEXT = "#8A3626"
+DANGER_DOT = "#C1432E"
+
+SUCCESS = "#3D7A3F"
+
+RECENT_THUMB_BG = "#E4D8C8"
+
+FONT_FAMILY = "Arial"
+
+FONT_APP_TITLE = (FONT_FAMILY, 12, "bold")
+FONT_NAV = (FONT_FAMILY, 11, "bold")
+FONT_NAV_INACTIVE = (FONT_FAMILY, 11)
+FONT_SECTION_TITLE = (FONT_FAMILY, 13, "bold")
+FONT_LABEL = (FONT_FAMILY, 9)
+FONT_LABEL_BOLD = (FONT_FAMILY, 9, "bold")
+FONT_BODY = (FONT_FAMILY, 10)
+FONT_BODY_BOLD = (FONT_FAMILY, 10, "bold")
+FONT_PILL = (FONT_FAMILY, 10, "bold")
+FONT_BADGE = (FONT_FAMILY, 9, "bold")

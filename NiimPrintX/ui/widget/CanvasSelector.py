@@ -4,6 +4,7 @@ from tkinter import ttk
 from PIL import ImageTk
 
 from .CanvasOperation import CanvasOperation
+from ..component import theme
 from ..component.DesignStore import load_design, save_design
 from NiimPrintX.nimmy.canvas_geometry import label_geometry
 
@@ -11,37 +12,54 @@ PREVIEW_TAG = "static_preview"
 
 
 class CanvasSelector:
-    def __init__(self, parent, config, text_op, img_op):
+    """Device + label-size pickers.
+
+    The "Warm Studio" refresh splits these across the chrome: the label-size
+    picker lives in the persistent top bar (next to the connection pill), the
+    device picker lives in the persistent bottom bar (next to Save/Print) --
+    so this takes two mount points instead of one, plus the app instance
+    itself (rather than relying on parent-widget chain walking) so it can
+    reach `root.text_tab` / `root.icon_tab` when restoring a saved design.
+    """
+
+    def __init__(self, parent, config, text_op, img_op, root, device_parent=None):
         self.parent = parent
         self.config = config
-        self.frame = ttk.Frame(parent)
+        self.root = root
+        self.frame = tk.Frame(parent, bg=theme.BG_SIDEBAR)
+        self.device_frame = tk.Frame(device_parent or parent, bg=theme.BG_SIDEBAR)
         self.canvas_op = CanvasOperation(config, text_op, img_op)
         self._preview_photo = None
         self.create_widgets()
 
+    def _pill(self, parent):
+        return tk.Frame(parent, bg=theme.BG_SIDEBAR, highlightbackground=theme.BORDER,
+                        highlightthickness=1, bd=0)
+
     def create_widgets(self):
-        device_label = tk.Label(self.frame, text="Device")
-        device_label.pack(side=tk.LEFT, padx=10)
+        device_pill = self._pill(self.device_frame)
+        device_pill.pack(side=tk.LEFT, padx=6, pady=6)
+        tk.Label(device_pill, text="Device", bg=theme.BG_SIDEBAR, fg=theme.TEXT_PRIMARY,
+                 font=theme.FONT_LABEL).pack(side=tk.LEFT, padx=(10, 6), pady=6)
         saved_device = self.config.settings.get("device", "d110")
         self.selected_device = tk.StringVar(value=saved_device.upper())
-        device_option = ttk.Combobox(self.frame, textvariable=self.selected_device,
+        device_option = ttk.Combobox(device_pill, textvariable=self.selected_device,
                                      values=list(map(lambda x: x.upper(), self.config.label_sizes.keys())),
-                                     state="readonly")
-        device_option.pack(side=tk.LEFT, padx=10)
+                                     state="readonly", width=6, style="Pill.TCombobox")
+        device_option.pack(side=tk.LEFT, padx=(0, 8), pady=4)
         device_option.bind("<<ComboboxSelected>>", self.update_device_label_size)
-        label_size_label = tk.Label(self.frame, text="Label size")
-        label_size_label.pack(side=tk.LEFT, padx=10)
+        self.device_frame.pack(side=tk.LEFT)
+
+        label_size_pill = self._pill(self.frame)
+        label_size_pill.pack(side=tk.LEFT, padx=6, pady=6)
         self.selected_label_size = tk.StringVar()
-        self.label_size_option = ttk.Combobox(self.frame, textvariable=self.selected_label_size,
-                                              state="readonly")
+        self.label_size_option = ttk.Combobox(label_size_pill, textvariable=self.selected_label_size,
+                                              state="readonly", width=13, style="Pill.TCombobox")
         self.update_device_label_size()
-        self.label_size_option.pack(side=tk.LEFT, padx=10)
+        self.label_size_option.pack(side=tk.LEFT, padx=8, pady=4)
         self.label_size_option.bind("<<ComboboxSelected>>", self.update_canvas_size)
         self.update_canvas_size()
         self.frame.pack(side=tk.LEFT)
-
-        # print_button = tk.Button(self.frame, text="Print")
-        # print_button.pack(side=tk.RIGHT, padx=10)
 
     def update_device_label_size(self, event=None):
         if self.config.current_label_size:
@@ -98,7 +116,7 @@ class CanvasSelector:
         # Create a new canvas with updated dimensions
         self.config.canvas = tk.Canvas(
             self.config.frames["top_frame"], width=self.canvas_width, height=self.canvas_height,
-            highlightthickness=0, bg="lightgray"
+            highlightthickness=0, bg=theme.BG_CANVAS_AREA
         )
         self.config.canvas.pack(padx=0, pady=0)
 
@@ -114,7 +132,7 @@ class CanvasSelector:
             self.bbox_top,
             self.bbox_left + self.bounding_box_width,
             self.bbox_top + self.bounding_box_height,
-            outline="blue",
+            outline=theme.ACCENT,
             width=1,
             # dash=(4, 4),
             fill="white",
@@ -126,7 +144,7 @@ class CanvasSelector:
             y_center - self.print_area_height // 2,
             x_center + self.print_area_width // 2,
             y_center + self.print_area_height // 2,
-            outline="red",
+            outline=theme.DANGER_DOT,
             width=1,
             dash=(4, 4),
             fill="white",
@@ -135,7 +153,7 @@ class CanvasSelector:
 
         self.config.canvas.bind("<Button-1>", self.canvas_op.canvas_click_handler)
         if restore_design:
-            load_design(self.config, self.parent.master, self.config.device, self.config.current_label_size)
+            load_design(self.config, self.root, self.config.device, self.config.current_label_size)
 
     def show_static_preview(self, image):
         """Overlay a flattened, non-editable preview image (e.g. a rendered Spoolman
