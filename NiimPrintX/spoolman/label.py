@@ -1,4 +1,9 @@
-"""Render a printable label image for a Spoolman spool record."""
+"""Render a printable label image for a Spoolman spool record.
+
+Styled after Spoolman's own spool QR card (vendor / name / material·id / a
+remaining-weight bar), minus any color swatch -- NiimBot labels print on a
+monochrome thermal head, so a color circle just dithers into a gray blob.
+"""
 from PIL import Image, ImageDraw, ImageFont
 
 try:
@@ -24,6 +29,7 @@ def _text_size(draw, text, font):
 
 
 def _fit_font(draw, text, max_width, max_height, start_size, min_size=8):
+    """Shrink a single line of text until it fits, or bottom out at min_size."""
     size = start_size
     font = _font(size)
     while size > min_size:
@@ -35,16 +41,38 @@ def _fit_font(draw, text, max_width, max_height, start_size, min_size=8):
     return font
 
 
-def _parse_hex(value):
-    if not value:
-        return None
-    value = value.strip().lstrip("#")
-    if len(value) != 6:
-        return None
-    try:
-        return tuple(int(value[i:i + 2], 16) for i in (0, 2, 4))
-    except ValueError:
-        return None
+def _wrap_lines(draw, text, font, max_width):
+    words = text.split()
+    if not words:
+        return [text]
+    lines = []
+    current = words[0]
+    for word in words[1:]:
+        candidate = f"{current} {word}"
+        if _text_size(draw, candidate, font)[0] <= max_width:
+            current = candidate
+        else:
+            lines.append(current)
+            current = word
+    lines.append(current)
+    return lines
+
+
+def _fit_wrapped(draw, text, max_width, max_height, start_size, min_size, max_lines):
+    """Shrink + word-wrap text until it fits within max_lines and max_height."""
+    size = start_size
+    fallback = None
+    while size >= min_size:
+        font = _font(size)
+        lines = _wrap_lines(draw, text, font, max_width)
+        line_height = _text_size(draw, "Ag", font)[1]
+        line_gap = max(1, round(line_height * 0.15))
+        total_height = line_height * len(lines) + line_gap * max(0, len(lines) - 1)
+        if len(lines) <= max_lines and total_height <= max_height:
+            return font, lines, total_height
+        fallback = (font, lines[:max_lines], line_height * max_lines)
+        size -= 1
+    return fallback if fallback else (_font(min_size), [text], _text_size(draw, text, _font(min_size))[1])
 
 
 def _spool_fields(spool):
@@ -55,38 +83,34 @@ def _spool_fields(spool):
         "vendor": vendor.get("name") or "",
         "name": filament.get("name") or "",
         "material": filament.get("material") or "",
-        "color_hex": filament.get("color_hex"),
-        "multi_color_hexes": filament.get("multi_color_hexes"),
-        "remaining_weight": spool.get("remaining_weight"),
-        "location": spool.get("location") or "",
     }
 
 
-def _draw_color_swatch(img, draw, box, fields):
+def _remaining_percent(spool):
+    remaining = spool.get("remaining_weight")
+    initial = spool.get("initial_weight")
+    if remaining is None or not initial:
+        return None
+    return max(0.0, min(100.0, (remaining / initial) * 100))
+
+
+def _caption_text(fields):
+    parts = [fields["material"]] if fields["material"] else []
+    parts.append(f"#{fields['id']}")
+    return " · ".join(parts)
+
+
+def _draw_progress_bar(draw, box, percent):
     x1, y1, x2, y2 = box
-    width, height = x2 - x1, y2 - y1
-    if width <= 0 or height <= 0:
+    if x2 <= x1 or y2 <= y1:
         return
-
-    multi = fields["multi_color_hexes"]
-    if multi:
-        colors = [c for c in (_parse_hex(h) for h in multi.split(",")) if c]
-    else:
-        colors = [c for c in (_parse_hex(fields["color_hex"]),) if c]
-
-    if colors:
-        mask = Image.new("L", (width, height), 0)
-        ImageDraw.Draw(mask).ellipse((0, 0, width - 1, height - 1), fill=255)
-
-        swatch = Image.new("RGB", (width, height), colors[0])
-        swatch_draw = ImageDraw.Draw(swatch)
-        stripe_width = width / len(colors)
-        for i, color in enumerate(colors):
-            swatch_draw.rectangle((i * stripe_width, 0, (i + 1) * stripe_width, height), fill=color)
-
-        img.paste(swatch, (x1, y1), mask)
-
-    draw.ellipse(box, outline=FOREGROUND, width=1)
+    radius = max(1, (y2 - y1) // 2)
+    draw.rounded_rectangle(box, radius=radius, outline=FOREGROUND, width=1)
+    if percent and percent > 0:
+        fill_width = min(round((x2 - x1) * (percent / 100)), x2 - x1)
+        fill_width = max(fill_width, y2 - y1)  # at least one full "pill" so the cap doesn't look clipped
+        fill_width = min(fill_width, x2 - x1)
+        draw.rounded_rectangle((x1, y1, x1 + fill_width, y2), radius=radius, fill=FOREGROUND)
 
 
 def _build_qr_image(data, size_px):
@@ -108,50 +132,64 @@ def build_spool_label_image(spool, width_px, height_px, *, include_qr=True, base
     img = Image.new("RGB", (width_px, height_px), BACKGROUND)
     draw = ImageDraw.Draw(img)
 
-    margin = max(2, round(height_px * 0.06))
-    content_height = max(height_px - margin * 2, 1)
-    swatch_size = min(content_height, max(round(width_px * 0.22), 10))
+    margin = max(2, round(height_px * 0.08))
+    top = margin
+    bottom = height_px - margin
+    content_height = max(bottom - top, 1)
 
-    swatch_box = (margin, margin, margin + swatch_size, margin + swatch_size)
-    _draw_color_swatch(img, draw, swatch_box, fields)
-
-    text_left = swatch_box[2] + margin
+    text_left = margin
     text_right = width_px - margin
 
     if include_qr and fields["id"] is not None:
-        qr_size = min(content_height, swatch_size)
-        candidate_text_width = text_right - text_left - qr_size - margin
-        if candidate_text_width >= max(width_px * 0.3, 40):
-            qr_data = (
-                f"{base_url.rstrip('/')}/spool/show/{fields['id']}"
-                if base_url else f"spoolman:spool:{fields['id']}"
-            )
-            qr_image = _build_qr_image(qr_data, qr_size)
-            if qr_image is not None:
-                img.paste(qr_image, (text_right - qr_size, margin))
-                text_right -= qr_size + margin
+        qr_size = content_height
+        qr_data = (
+            f"{base_url.rstrip('/')}/spool/show/{fields['id']}"
+            if base_url else f"spoolman:spool:{fields['id']}"
+        )
+        qr_image = _build_qr_image(qr_data, qr_size)
+        if qr_image is not None:
+            img.paste(qr_image, (margin, top))
+            text_left += qr_size + margin
 
     text_width = max(text_right - text_left, 10)
+    gap = max(1, round(content_height * 0.05))
+    y = top
 
-    title = " ".join(part for part in (fields["vendor"], fields["name"]) if part) or f"Spool #{fields['id']}"
-    subtitle_parts = [fields["material"]]
-    if fields["remaining_weight"] is not None:
-        subtitle_parts.append(f"{fields['remaining_weight']:.0f}g left")
-    else:
-        subtitle_parts.append(f"#{fields['id']}")
-    subtitle = " · ".join(part for part in subtitle_parts if part)
+    if fields["vendor"]:
+        vendor_text = fields["vendor"].upper()
+        vendor_font = _fit_font(
+            draw, vendor_text, text_width, round(content_height * 0.16), start_size=round(content_height * 0.18)
+        )
+        draw.text((text_left, y), vendor_text, font=vendor_font, fill=FOREGROUND)
+        y += _text_size(draw, vendor_text, vendor_font)[1] + gap
 
-    title_font = _fit_font(draw, title, text_width, content_height * 0.6, start_size=round(content_height * 0.55))
-    subtitle_font = _fit_font(
-        draw, subtitle, text_width, content_height * 0.35, start_size=round(content_height * 0.32)
+    percent = _remaining_percent(spool)
+    bar_height = max(3, round(content_height * 0.12)) if percent is not None else 0
+
+    caption = _caption_text(fields)
+    caption_font = _fit_font(
+        draw, caption, text_width, round(content_height * 0.16), start_size=round(content_height * 0.18)
     )
+    caption_height = _text_size(draw, caption, caption_font)[1]
 
-    title_width, title_height = _text_size(draw, title, title_font)
-    subtitle_width, subtitle_height = _text_size(draw, subtitle, subtitle_font)
-    total_text_height = title_height + subtitle_height + 4
-    text_top = margin + max((content_height - total_text_height) // 2, 0)
+    reserved_bottom = caption_height + gap + (bar_height + gap if bar_height else 0)
+    name_max_height = max(bottom - y - reserved_bottom, round(content_height * 0.25))
 
-    draw.text((text_left, text_top), title, font=title_font, fill=FOREGROUND)
-    draw.text((text_left, text_top + title_height + 4), subtitle, font=subtitle_font, fill=FOREGROUND)
+    name_text = fields["name"] or f"Spool #{fields['id']}"
+    name_font, name_lines, _ = _fit_wrapped(
+        draw, name_text, text_width, name_max_height,
+        start_size=round(content_height * 0.32), min_size=max(8, round(content_height * 0.14)), max_lines=3,
+    )
+    for line in name_lines:
+        draw.text((text_left, y), line, font=name_font, fill=FOREGROUND)
+        y += _text_size(draw, line, name_font)[1] + max(1, round(gap * 0.5))
+
+    y += gap
+    draw.text((text_left, y), caption, font=caption_font, fill=FOREGROUND)
+    y += caption_height + gap
+
+    if bar_height:
+        bar_bottom = min(y + bar_height, bottom)
+        _draw_progress_bar(draw, (text_left, y, text_right, bar_bottom), percent)
 
     return img
