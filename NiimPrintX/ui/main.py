@@ -6,6 +6,7 @@ from tkinter import messagebox
 from .AppConfig import AppConfig
 from .widget.TextTab import TextTab
 from .widget.IconTab import IconTab
+from .widget.SpoolmanTab import SpoolmanTab
 from .widget.StatusBar import StatusBar
 from .widget.PrintOption import PrintOption
 
@@ -96,9 +97,11 @@ class LabelPrinterApp(tk.Tk):
         self.tab_control = ttk.Notebook(self)
         self.text_tab = TextTab(self.tab_control, self.app_config)
         self.icon_tab = IconTab(self.tab_control, self.app_config)
+        self.spoolman_tab = SpoolmanTab(self, self.tab_control, self.app_config)
 
         self.tab_control.add(self.text_tab.frame, text='Text')
         self.tab_control.add(self.icon_tab.frame, text='Icon')
+        self.tab_control.add(self.spoolman_tab.frame, text='Spoolman')
         self.tab_control.pack(expand=1, fill='both', side=tk.TOP)
 
 

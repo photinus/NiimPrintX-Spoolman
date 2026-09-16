@@ -121,6 +121,41 @@ The GUI application allows users to design labels based on the label device and 
 python -m NiimPrintX.ui
 ```
 
+## Spoolman Integration
+NiimPrintX can generate and print spool labels directly from a [Spoolman](https://github.com/Donkie/Spoolman) filament inventory server. A label shows the filament vendor/name, material, remaining weight, a color swatch, and (optionally) a QR code linking back to the spool.
+
+### GUI
+Open the **Spoolman** tab, enter your Spoolman server URL (e.g. `http://spoolman.local:7912`) and click **Connect**. Select a device and label size at the bottom of the window as usual, pick a spool from the list, and click **Generate Label** to open the same print preview used for designed labels.
+
+### CLI
+```shell
+Usage: python -m NiimPrintX.cli spoolman [OPTIONS] COMMAND [ARGS]...
+
+  Print labels for filament spools tracked in Spoolman.
+
+Commands:
+  config  Save a default Spoolman server URL for future commands.
+  list    List spools available on the configured Spoolman server.
+  print   Fetch a spool from Spoolman and print a label for it.
+  sizes   List the label size presets available for a printer model.
+```
+
+Save a default server URL once (also honored via the `SPOOLMAN_URL` environment variable):
+```shell
+python -m NiimPrintX.cli spoolman config --base-url http://spoolman.local:7912
+```
+
+List spools, optionally filtered:
+```shell
+python -m NiimPrintX.cli spoolman list --material PLA --vendor Polymaker
+```
+
+Print a label for a spool, using a built-in size preset or a custom size in mm:
+```shell
+python -m NiimPrintX.cli spoolman print --spool-id 42 -m d110 --label-size "50mm x 14mm"
+python -m NiimPrintX.cli spoolman print --spool-id 42 -m d110 --width 50 --height 14 --no-qrcode
+```
+
 ## Contributing
 Contributions are welcome! Please fork the repository and submit a pull request with your improvements.
 

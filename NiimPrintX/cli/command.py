@@ -5,6 +5,7 @@ from NiimPrintX.nimmy.bluetooth import find_device
 from NiimPrintX.nimmy.printer import PrinterClient, InfoEnum
 from NiimPrintX.nimmy.logger_config import setup_logger, get_logger, logger_enable
 from NiimPrintX.nimmy.helper import print_info, print_error, print_success
+from NiimPrintX.cli.spoolman_command import spoolman_cli
 
 from devtools import debug
 
@@ -26,6 +27,9 @@ def niimbot_cli(ctx, verbose):
     ctx.obj['VERBOSE'] = verbose
     setup_logger()
     logger_enable(verbose)
+
+
+niimbot_cli.add_command(spoolman_cli, name="spoolman")
 
 
 @niimbot_cli.command("print")
