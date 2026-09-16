@@ -14,6 +14,7 @@ from .widget.TitleBar import TitleBar
 from .component import theme
 from .component import RecentLabels
 from .component.RoundedButton import RoundedButton
+from .component.RoundedFrame import RoundedFrame
 
 from NiimPrintX.ui.widget.CanvasSelector import CanvasSelector
 from NiimPrintX.ui.widget.FileMenu import FileMenu
@@ -46,6 +47,9 @@ from devtools import debug
 _RESIZE_BORDER = 6
 _MIN_WIDTH = 760
 _MIN_HEIGHT = 560
+_PANEL_MIN_WIDTH = 240
+_PANEL_MAX_WIDTH = 480
+_PANEL_DEFAULT_WIDTH = 296
 
 
 class LabelPrinterApp(tk.Tk):
@@ -212,14 +216,21 @@ class LabelPrinterApp(tk.Tk):
 
         # Canvas host -- CanvasSelector creates/destroys the actual tk.Canvas here
         # whenever the device/label size changes. Stays mounted for both sections.
-        self.app_config.frames["top_frame"] = tk.Frame(body, bg=theme.BG_CANVAS_AREA)
+        canvas_card = RoundedFrame(body, bg_color=theme.BG_CANVAS_AREA, radius=16,
+                                   outer_bg=theme.BG_CONTENT, fill_parent=True)
+        canvas_card.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.app_config.frames["top_frame"] = canvas_card.inner
         self.app_config.screen_dpi = int(self.app_config.frames["top_frame"].winfo_fpixels('1i'))
-        self.app_config.frames["top_frame"].pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        side_panel = tk.Frame(body, bg=theme.BG_CARD, width=296,
-                              highlightbackground=theme.BORDER, highlightthickness=1)
-        side_panel.pack(side=tk.LEFT, fill=tk.Y, padx=(24, 0))
-        side_panel.pack_propagate(False)
+        self._make_panel_splitter(body)
+
+        saved_panel_width = self.app_config.settings.get("side_panel_width", _PANEL_DEFAULT_WIDTH)
+        saved_panel_width = max(_PANEL_MIN_WIDTH, min(_PANEL_MAX_WIDTH, saved_panel_width))
+        self.side_panel_card = RoundedFrame(body, bg_color=theme.BG_CARD, radius=16,
+                                            border_color=theme.BORDER, outer_bg=theme.BG_CONTENT,
+                                            fill_parent=True, width=saved_panel_width)
+        self.side_panel_card.pack(side=tk.LEFT, fill=tk.Y)
+        side_panel = self.side_panel_card.inner
 
         self.text_tab = TextTab(side_panel, self.app_config)
         self.icon_tab = IconTab(side_panel, self.app_config)
@@ -296,6 +307,44 @@ class LabelPrinterApp(tk.Tk):
             messagebox.showerror("Recent labels", "That label's image is no longer available.")
             return
         self.print_option.show_image_preview(image, name=entry.get("name"))
+
+    # -- Draggable splitter between the canvas card and the side panel ----------------
+
+    def _make_panel_splitter(self, parent):
+        splitter = tk.Frame(parent, bg=theme.BG_CONTENT, width=16)
+        splitter.pack(side=tk.LEFT, fill=tk.Y)
+        self._set_resize_cursor(splitter, "size_we", "sb_h_double_arrow")
+
+        grip = tk.Canvas(splitter, width=4, height=28, highlightthickness=0, bd=0, bg=theme.BG_CONTENT)
+        grip.place(relx=0.5, rely=0.5, anchor="center")
+        for dy in (-9, 0, 9):
+            grip.create_oval(0, 12 + dy, 4, 16 + dy, fill=theme.BORDER_STRONG, outline=theme.BORDER_STRONG)
+        self._set_resize_cursor(grip, "size_we", "sb_h_double_arrow")
+
+        for widget in (splitter, grip):
+            widget.bind("<ButtonPress-1>", self._start_panel_resize)
+            widget.bind("<B1-Motion>", self._do_panel_resize)
+            widget.bind("<ButtonRelease-1>", self._end_panel_resize)
+
+    def _start_panel_resize(self, event):
+        self._panel_resize_start = (event.x_root, self.side_panel_card.winfo_width())
+
+    def _do_panel_resize(self, event):
+        if not hasattr(self, "_panel_resize_start"):
+            return
+        start_x, start_w = self._panel_resize_start
+        # Dragging the handle left (negative dx) grows the panel since it's
+        # anchored to the right edge of the body row.
+        new_w = start_w - (event.x_root - start_x)
+        new_w = max(_PANEL_MIN_WIDTH, min(_PANEL_MAX_WIDTH, new_w))
+        self.side_panel_card.configure(width=new_w)
+
+    def _end_panel_resize(self, _event=None):
+        if not hasattr(self, "_panel_resize_start"):
+            return
+        del self._panel_resize_start
+        self.app_config.settings["side_panel_width"] = self.side_panel_card.winfo_width()
+        self.app_config.save_settings()
 
     # -- Frameless-window chrome: resize grips, minimize/maximize, close --------------
 

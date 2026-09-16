@@ -6,40 +6,56 @@ from PIL import Image, ImageTk
 
 from ..component import theme
 from ..component import RecentLabels
+from ..component.RoundedButton import _rounded_rect
 
 NAV_ITEMS = [
     ("design", "Design"),
     ("spoolman", "Spoolman"),
 ]
 
+EXPANDED_WIDTH = 232
+COLLAPSED_WIDTH = 64
+
 
 class _NavRow(tk.Canvas):
-    """A single sidebar nav row: icon glyph + label, pill-highlighted when active."""
+    """A single sidebar nav row: icon glyph + label, pill-highlighted when
+    active. Auto-sizes to whatever width it's packed/stretched to (rather
+    than a fixed pixel width) so it stays correct as the sidebar
+    collapses/expands; `set_collapsed` hides the label and centers the icon."""
 
-    WIDTH = 200
     HEIGHT = 36
 
     def __init__(self, parent, key, label, on_click):
-        super().__init__(parent, width=self.WIDTH, height=self.HEIGHT,
-                          highlightthickness=0, bd=0, bg=theme.BG_SIDEBAR)
+        super().__init__(parent, height=self.HEIGHT, highlightthickness=0, bd=0, bg=theme.BG_SIDEBAR)
         self.key = key
         self.label = label
         self._on_click = on_click
         self._active = False
+        self._collapsed = False
+        self._width = 200
         self._font_active = tk_font.Font(family=theme.FONT_NAV[0], size=theme.FONT_NAV[1], weight="bold")
         self._font_inactive = tk_font.Font(family=theme.FONT_NAV_INACTIVE[0], size=theme.FONT_NAV_INACTIVE[1])
         self.bind("<Button-1>", lambda e: self._on_click(self.key))
+        self.bind("<Configure>", lambda e: self._on_configure(e.width))
+        self._draw()
+
+    def _on_configure(self, width):
+        self._width = width
         self._draw()
 
     def set_active(self, active):
         self._active = active
         self._draw()
 
+    def set_collapsed(self, collapsed):
+        self._collapsed = collapsed
+        self._draw()
+
     def _draw(self):
         self.delete("all")
+        w = self._width
         if self._active:
-            from ..component.RoundedButton import _rounded_rect
-            _rounded_rect(self, 0, 0, self.WIDTH, self.HEIGHT, 8, fill=theme.ACCENT_LIGHT, outline=theme.ACCENT_LIGHT)
+            _rounded_rect(self, 0, 0, w, self.HEIGHT, 8, fill=theme.ACCENT_LIGHT, outline=theme.ACCENT_LIGHT)
             fg = theme.ACCENT_DARK
             glyph = theme.ACCENT
             font = self._font_active
@@ -48,7 +64,8 @@ class _NavRow(tk.Canvas):
             glyph = theme.TEXT_MUTED
             font = self._font_inactive
 
-        cx, cy = 18, self.HEIGHT / 2
+        cx = w / 2 if self._collapsed else 18
+        cy = self.HEIGHT / 2
         if self.key == "design":
             self.create_rectangle(cx - 8, cy - 8, cx + 8, cy + 8, outline=glyph, width=2)
             self.create_line(cx - 3, cy + 1, cx + 3, cy - 5, fill=glyph, width=2)
@@ -56,7 +73,51 @@ class _NavRow(tk.Canvas):
             self.create_oval(cx - 8, cy - 8, cx + 8, cy + 8, outline=glyph, width=2)
             self.create_oval(cx - 2, cy - 2, cx + 2, cy + 2, fill=glyph, outline=glyph)
 
-        self.create_text(36, cy, text=self.label, fill=fg, font=font, anchor="w")
+        if not self._collapsed:
+            self.create_text(36, cy, text=self.label, fill=fg, font=font, anchor="w")
+
+
+class _CollapseToggle(tk.Canvas):
+    """Small round chevron button, pinned to the sidebar's bottom-right
+    corner, that collapses it to an icon rail or expands it back."""
+
+    SIZE = 24
+
+    def __init__(self, parent, on_click):
+        super().__init__(parent, width=self.SIZE, height=self.SIZE, highlightthickness=0,
+                         bd=0, bg=theme.BG_SIDEBAR, cursor="hand2")
+        self._on_click = on_click
+        self._collapsed = False
+        self._hover = False
+        self.bind("<Button-1>", lambda e: self._on_click())
+        self.bind("<Enter>", self._enter)
+        self.bind("<Leave>", self._leave)
+        self._draw()
+
+    def _enter(self, _event=None):
+        self._hover = True
+        self._draw()
+
+    def _leave(self, _event=None):
+        self._hover = False
+        self._draw()
+
+    def set_collapsed(self, collapsed):
+        self._collapsed = collapsed
+        self._draw()
+
+    def _draw(self):
+        self.delete("all")
+        bg = theme.ACCENT_LIGHT if self._hover else theme.BG_CONTENT
+        _rounded_rect(self, 0, 0, self.SIZE, self.SIZE, self.SIZE / 2, fill=bg, outline=theme.BORDER)
+        cx, cy = self.SIZE / 2, self.SIZE / 2
+        fg = theme.TEXT_PRIMARY
+        if self._collapsed:
+            self.create_line(cx - 3, cy - 5, cx + 3, cy, fill=fg, width=2)
+            self.create_line(cx + 3, cy, cx - 3, cy + 5, fill=fg, width=2)
+        else:
+            self.create_line(cx + 3, cy - 5, cx - 3, cy, fill=fg, width=2)
+            self.create_line(cx - 3, cy, cx + 3, cy + 5, fill=fg, width=2)
 
 
 def _relative_time(timestamp):
@@ -117,11 +178,12 @@ class _RecentRow(tk.Frame):
 
 
 class Sidebar(tk.Frame):
-    """Left nav rail: app logo/name, Design/Spoolman section switcher, and a
-    Recent labels history (populated from prints, clicking reopens one)."""
+    """Left nav rail: Design/Spoolman section switcher plus a Recent labels
+    history (populated from prints, clicking reopens one). Collapsible to an
+    icon-only rail via the chevron pinned at its bottom-right corner."""
 
     def __init__(self, parent, on_select, config=None, on_recent_select=None):
-        super().__init__(parent, bg=theme.BG_SIDEBAR, width=232)
+        super().__init__(parent, bg=theme.BG_SIDEBAR, width=EXPANDED_WIDTH)
         self.pack_propagate(False)
         self._on_select = on_select
         self._config = config
@@ -129,28 +191,13 @@ class Sidebar(tk.Frame):
         self._rows = {}
         self._active_key = None
         self._recent_rows_frame = None
+        self._recent_col = None
+        self._collapsed = False
         self._build()
 
     def _build(self):
-        header = tk.Frame(self, bg=theme.BG_SIDEBAR)
-        header.pack(side=tk.TOP, fill=tk.X, padx=16, pady=(20, 24))
-
-        logo = tk.Canvas(header, width=30, height=30, highlightthickness=0, bd=0, bg=theme.BG_SIDEBAR)
-        logo.pack(side=tk.LEFT)
-        from ..component.RoundedButton import _rounded_rect
-        _rounded_rect(logo, 0, 0, 30, 30, 8, fill=theme.ACCENT, outline=theme.ACCENT)
-        logo.create_text(15, 15, text="N", fill=theme.TEXT_ON_ACCENT,
-                         font=(theme.FONT_FAMILY, 14, "bold"))
-
-        text_col = tk.Frame(header, bg=theme.BG_SIDEBAR)
-        text_col.pack(side=tk.LEFT, padx=(10, 0))
-        tk.Label(text_col, text="NiimPrintX", bg=theme.BG_SIDEBAR, fg=theme.TEXT_PRIMARY,
-                 font=theme.FONT_APP_TITLE, anchor="w").pack(anchor="w")
-        tk.Label(text_col, text="Label Studio", bg=theme.BG_SIDEBAR, fg=theme.TEXT_MUTED,
-                 font=(theme.FONT_FAMILY, 9), anchor="w").pack(anchor="w")
-
         nav_col = tk.Frame(self, bg=theme.BG_SIDEBAR)
-        nav_col.pack(side=tk.TOP, fill=tk.X, padx=16, pady=(0, 22))
+        nav_col.pack(side=tk.TOP, fill=tk.X, padx=16, pady=(20, 22))
         for key, label in NAV_ITEMS:
             row = _NavRow(nav_col, key, label, self.select)
             row.pack(side=tk.TOP, fill=tk.X, pady=2)
@@ -161,16 +208,19 @@ class Sidebar(tk.Frame):
         self._active_key = NAV_ITEMS[0][0]
         self._rows[self._active_key].set_active(True)
 
-        recent_col = tk.Frame(self, bg=theme.BG_SIDEBAR)
-        recent_col.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=16)
-        self._recent_heading = tk.Label(recent_col, text="RECENT LABELS", bg=theme.BG_SIDEBAR,
+        self._recent_col = tk.Frame(self, bg=theme.BG_SIDEBAR)
+        self._recent_col.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=16)
+        self._recent_heading = tk.Label(self._recent_col, text="RECENT LABELS", bg=theme.BG_SIDEBAR,
                                         fg=theme.TEXT_FAINT, font=(theme.FONT_FAMILY, 9, "bold"),
                                         anchor="w")
         self._recent_heading.pack(fill=tk.X, pady=(0, 10))
-        self._recent_rows_frame = tk.Frame(recent_col, bg=theme.BG_SIDEBAR)
+        self._recent_rows_frame = tk.Frame(self._recent_col, bg=theme.BG_SIDEBAR)
         self._recent_rows_frame.pack(fill=tk.BOTH, expand=True)
 
         self.refresh_recent()
+
+        self._toggle = _CollapseToggle(self, self.toggle_collapsed)
+        self._toggle.place(relx=1.0, rely=1.0, anchor="se", x=-10, y=-10)
 
     def select(self, key):
         if key == self._active_key:
@@ -179,6 +229,20 @@ class Sidebar(tk.Frame):
         for row_key, row in self._rows.items():
             row.set_active(row_key == key)
         self._on_select(key)
+
+    def toggle_collapsed(self):
+        self.set_collapsed(not self._collapsed)
+
+    def set_collapsed(self, collapsed):
+        self._collapsed = collapsed
+        self.configure(width=COLLAPSED_WIDTH if collapsed else EXPANDED_WIDTH)
+        for row in self._rows.values():
+            row.set_collapsed(collapsed)
+        if collapsed:
+            self._recent_col.pack_forget()
+        else:
+            self._recent_col.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=16)
+        self._toggle.set_collapsed(collapsed)
 
     def refresh_recent(self):
         """Re-read the recent-labels history from disk and redraw the list."""

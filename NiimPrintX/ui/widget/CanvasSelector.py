@@ -6,6 +6,7 @@ from PIL import ImageTk
 from .CanvasOperation import CanvasOperation
 from ..component import theme
 from ..component.DesignStore import load_design, save_design
+from ..component.RoundedFrame import RoundedFrame
 from NiimPrintX.nimmy.canvas_geometry import label_geometry
 
 PREVIEW_TAG = "static_preview"
@@ -33,31 +34,40 @@ class CanvasSelector:
         self.create_widgets()
 
     def _pill(self, parent):
-        return tk.Frame(parent, bg=theme.BG_SIDEBAR, highlightbackground=theme.BORDER,
-                        highlightthickness=1, bd=0)
+        return RoundedFrame(parent, bg_color=theme.BG_SIDEBAR, radius=10,
+                            border_color=theme.BORDER, outer_bg=self._parent_bg(parent))
+
+    @staticmethod
+    def _parent_bg(widget):
+        try:
+            return widget.cget("bg")
+        except tk.TclError:
+            return theme.BG_CONTENT
 
     def create_widgets(self):
         device_pill = self._pill(self.device_frame)
-        device_pill.pack(side=tk.LEFT, padx=6, pady=6)
-        tk.Label(device_pill, text="Device", bg=theme.BG_SIDEBAR, fg=theme.TEXT_PRIMARY,
+        tk.Label(device_pill.inner, text="Device", bg=theme.BG_SIDEBAR, fg=theme.TEXT_PRIMARY,
                  font=theme.FONT_LABEL).pack(side=tk.LEFT, padx=(10, 6), pady=6)
         saved_device = self.config.settings.get("device", "d110")
         self.selected_device = tk.StringVar(value=saved_device.upper())
-        device_option = ttk.Combobox(device_pill, textvariable=self.selected_device,
+        device_option = ttk.Combobox(device_pill.inner, textvariable=self.selected_device,
                                      values=list(map(lambda x: x.upper(), self.config.label_sizes.keys())),
                                      state="readonly", width=6, style="Pill.TCombobox")
         device_option.pack(side=tk.LEFT, padx=(0, 8), pady=4)
         device_option.bind("<<ComboboxSelected>>", self.update_device_label_size)
+        device_pill.finalize()
+        device_pill.pack(side=tk.LEFT, padx=6, pady=6)
         self.device_frame.pack(side=tk.LEFT)
 
         label_size_pill = self._pill(self.frame)
-        label_size_pill.pack(side=tk.LEFT, padx=6, pady=6)
         self.selected_label_size = tk.StringVar()
-        self.label_size_option = ttk.Combobox(label_size_pill, textvariable=self.selected_label_size,
+        self.label_size_option = ttk.Combobox(label_size_pill.inner, textvariable=self.selected_label_size,
                                               state="readonly", width=13, style="Pill.TCombobox")
-        self.update_device_label_size()
         self.label_size_option.pack(side=tk.LEFT, padx=8, pady=4)
         self.label_size_option.bind("<<ComboboxSelected>>", self.update_canvas_size)
+        label_size_pill.finalize()
+        label_size_pill.pack(side=tk.LEFT, padx=6, pady=6)
+        self.update_device_label_size()
         self.update_canvas_size()
         self.frame.pack(side=tk.LEFT)
 
