@@ -4,7 +4,9 @@ from tkinter import font as tk_font
 import tkinter.messagebox as messagebox
 
 from .TextOperation import TextOperation
+from ..component import theme
 from ..component.FontList import fonts
+from ..component.RoundedButton import RoundedButton
 
 from devtools import debug
 
@@ -13,99 +15,104 @@ class TextTab:
     def __init__(self, parent, config):
         self.parent = parent
         self.config = config
-        self.frame = ttk.Frame(parent)
+        self.frame = tk.Frame(parent, bg=theme.BG_CARD, padx=20, pady=20)
         self.text_op = TextOperation(self, config)
         self.fonts = fonts()
         self.create_widgets()
 
     def create_widgets(self):
-        if self.config.os_system == "Darwin":
-            default_bg = 'systemWindowBackgroundColor1'
-        elif self.config.os_system == "Linux":
-            default_bg = "grey85"
-        elif self.config.os_system == "Windows":
-            default_bg = 'systemButtonFace'
+        default_bg = theme.BG_CARD
+        label_style = {"bg": default_bg, "fg": theme.TEXT_MUTED, "font": theme.FONT_LABEL}
+
+        tk.Label(self.frame, text="Text element", bg=default_bg, fg=theme.TEXT_PRIMARY,
+                 font=theme.FONT_SECTION_TITLE).grid(row=0, column=0, columnspan=5, sticky='w', pady=(0, 14))
 
         # Content label and multi-line text entry with scrollbar
-        tk.Label(self.frame, text="Content", bg=default_bg).grid(row=0, column=0, sticky='nw')
+        tk.Label(self.frame, text="Content", **label_style).grid(row=1, column=0, sticky='nw')
         
-        # Create frame to hold text widget and scrollbar
-        text_frame = tk.Frame(self.frame, bg=default_bg)
-        text_frame.grid(row=0, column=1, sticky='ew', padx=5)
-        
-        self.content_entry = tk.Text(text_frame, highlightbackground=default_bg, height=3, width=30)
-        self.content_entry.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
+        self.frame.grid_columnconfigure(0, weight=1)
+
+        # Content: multi-line text entry with scrollbar
+        tk.Label(self.frame, text="Content", **label_style).grid(row=1, column=0, sticky='w', pady=(0, 4))
+        text_frame = tk.Frame(self.frame, bg=default_bg, highlightbackground=theme.BORDER, highlightthickness=1)
+        text_frame.grid(row=2, column=0, sticky='ew', pady=(0, 4))
+
+        self.content_entry = tk.Text(text_frame, highlightthickness=0, bd=0, height=3, width=24,
+                                     bg=theme.BG_FIELD, fg=theme.TEXT_PRIMARY, font=theme.FONT_BODY)
+        self.content_entry.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=6, pady=6)
+
         # Add scrollbar for longer text
         scrollbar = tk.Scrollbar(text_frame, command=self.content_entry.yview)
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.content_entry.config(yscrollcommand=scrollbar.set)
-        
+
         self.content_entry.insert("1.0", "Text")
 
-        self.sample_text_label = tk.Label(self.frame, text="Sample Text", font=('Arial', 14), bg=default_bg)
-        self.sample_text_label.grid(row=0, column=2, sticky='w', columnspan=3)
+        self.sample_text_label = tk.Label(self.frame, text="Sample Text", font=('Arial', 12),
+                                          bg=default_bg, fg=theme.TEXT_FAINT, wraplength=250, justify='left')
+        self.sample_text_label.grid(row=3, column=0, sticky='w', pady=(0, 10))
 
-        tk.Label(self.frame, text="Font Family", bg=default_bg).grid(row=1, column=0, sticky='w')
-        self.font_family_dropdown = ttk.Combobox(self.frame, values=list(self.fonts.keys()))
-        self.font_family_dropdown.grid(row=1, column=1, sticky='ew', padx=5)
+        tk.Label(self.frame, text="Font family", **label_style).grid(row=4, column=0, sticky='w', pady=(0, 4))
+        self.font_family_dropdown = ttk.Combobox(self.frame, values=list(self.fonts.keys()), style="Pill.TCombobox")
+        self.font_family_dropdown.grid(row=5, column=0, sticky='ew', pady=(0, 10))
         font_settings = self.config.settings.get("font", {})
         self.font_family_dropdown.set(font_settings.get("family", "Arial"))
         widget_name = "font_dropdown"
         self.font_family_dropdown.bind("<<ComboboxSelected>>",
                                        lambda event, w=widget_name: self.update_text_properties(event, w))
-                                       # self.update_font_list)
-
-        # tk.Label(self.frame, text="Font", bg=default_bg).grid(row=1, column=2, sticky='w')
-        # self.font_dropdown = ttk.Combobox(self.frame, state="readonly")
-        # self.font_dropdown.grid(row=1, column=3, sticky='ew', padx=5)
-        # widget_name = "font_dropdown"
-        # self.font_dropdown.bind("<<ComboboxSelected>>",
-        #                         lambda event, w=widget_name: self.update_text_properties(event, w))
         self.update_font_list()
 
-        self.bold_var = tk.BooleanVar()
-        self.bold_var.set(font_settings.get("weight", "normal") == "bold")
-        bold_button = tk.Checkbutton(self.frame, text="Bold", variable=self.bold_var, bg=default_bg,
-                                     command=self.update_text_properties)
-        bold_button.grid(row=1, column=2, sticky='w')
-        self.italic_var = tk.BooleanVar()
-        self.italic_var.set(font_settings.get("slant", "roman") == "italic")
-        italic_button = tk.Checkbutton(self.frame, text="Italic", variable=self.italic_var, bg=default_bg,
-                                       command=self.update_text_properties)
-        italic_button.grid(row=1, column=3, sticky='w')
-        self.underline_var = tk.BooleanVar()
-        self.underline_var.set(font_settings.get("underline", False))
-        underline_button = tk.Checkbutton(self.frame, text="Underline", variable=self.underline_var, bg=default_bg,
-                                          command=self.update_text_properties)
-        underline_button.grid(row=1, column=4, sticky='w')
+        size_row = tk.Frame(self.frame, bg=default_bg)
+        size_row.grid(row=6, column=0, sticky='ew', pady=(0, 10))
+        size_row.grid_columnconfigure(0, weight=1)
+        size_row.grid_columnconfigure(1, weight=1)
 
-        tk.Label(self.frame, text="Font Size", bg=default_bg).grid(row=2, column=0, sticky='w')
+        size_col = tk.Frame(size_row, bg=default_bg)
+        size_col.grid(row=0, column=0, sticky='ew', padx=(0, 6))
+        tk.Label(size_col, text="Size", **label_style).pack(anchor='w', pady=(0, 4))
         self.size_var = tk.IntVar()
         self.size_var.set(font_settings.get("size", 16))
-        self.font_size_dropdown = tk.Spinbox(self.frame, from_=4, to=100, textvariable=self.size_var,
-                                             highlightbackground=default_bg, command=self.update_text_properties)
+        self.font_size_dropdown = tk.Spinbox(size_col, from_=4, to=100, textvariable=self.size_var,
+                                             highlightthickness=1, highlightbackground=theme.BORDER, bd=0,
+                                             bg=theme.BG_FIELD, command=self.update_text_properties)
         self.font_size_dropdown.bind('<FocusOut>', self.update_text_properties)
-        self.font_size_dropdown.grid(row=2, column=1, sticky='ew', padx=5)
+        self.font_size_dropdown.pack(fill='x')
 
-        tk.Label(self.frame, text="Font Kerning", bg=default_bg).grid(row=3, column=0, sticky='w')
+        kerning_col = tk.Frame(size_row, bg=default_bg)
+        kerning_col.grid(row=0, column=1, sticky='ew')
+        tk.Label(kerning_col, text="Kerning", **label_style).pack(anchor='w', pady=(0, 4))
         self.kerning_var = tk.StringVar()
         self.kerning_var.set(str(font_settings.get("kerning", "0")))
-        self.font_kerning_dropdown = tk.Spinbox(self.frame, from_=0, to=20, increment=0.1, format="%.1f", textvariable=self.kerning_var,
-                                             highlightbackground=default_bg, command=self.update_text_properties)
+        self.font_kerning_dropdown = tk.Spinbox(kerning_col, from_=0, to=20, increment=0.1, format="%.1f",
+                                                textvariable=self.kerning_var, highlightthickness=1,
+                                                highlightbackground=theme.BORDER, bd=0, bg=theme.BG_FIELD,
+                                                command=self.update_text_properties)
         self.font_kerning_dropdown.bind('<FocusOut>', self.update_text_properties)
-        self.font_kerning_dropdown.grid(row=3, column=1, sticky='ew', padx=5)
+        self.font_kerning_dropdown.pack(fill='x')
 
-        button_frame = tk.Frame(self.frame)
-        self.add_button = tk.Button(button_frame, text="Add", highlightbackground=default_bg,
-                                    command=self.text_op.add_text_to_canvas)
-        # add_button.grid(row=3, column=1, rowspan=4, padx=5)
+        style_row = tk.Frame(self.frame, bg=default_bg)
+        style_row.grid(row=7, column=0, sticky='w', pady=(0, 16))
+        self.bold_var = tk.BooleanVar()
+        self.bold_var.set(font_settings.get("weight", "normal") == "bold")
+        tk.Checkbutton(style_row, text="Bold", variable=self.bold_var, bg=default_bg,
+                      command=self.update_text_properties).pack(side=tk.LEFT)
+        self.italic_var = tk.BooleanVar()
+        self.italic_var.set(font_settings.get("slant", "roman") == "italic")
+        tk.Checkbutton(style_row, text="Italic", variable=self.italic_var, bg=default_bg,
+                      command=self.update_text_properties).pack(side=tk.LEFT, padx=(10, 0))
+        self.underline_var = tk.BooleanVar()
+        self.underline_var.set(font_settings.get("underline", False))
+        tk.Checkbutton(style_row, text="Underline", variable=self.underline_var, bg=default_bg,
+                      command=self.update_text_properties).pack(side=tk.LEFT, padx=(10, 0))
 
-        self.delete_button = tk.Button(button_frame, text="Delete", highlightbackground=default_bg,
-                                       command=self.text_op.delete_text)
+        button_frame = tk.Frame(self.frame, bg=default_bg)
+        button_frame.grid(row=8, column=0, sticky="ew")
+        self.add_button = RoundedButton(button_frame, text="Add", variant="primary", bg=default_bg,
+                                        command=self.text_op.add_text_to_canvas)
+        self.delete_button = RoundedButton(button_frame, text="Delete", variant="outline", bg=default_bg,
+                                           command=self.text_op.delete_text)
         self.add_button.pack(side=tk.LEFT)
-        self.delete_button.pack(side=tk.LEFT)
-        button_frame.grid(row=4, column=1, sticky="w")
+        self.delete_button.pack(side=tk.LEFT, padx=(8, 0))
 
     def update_font_list(self, event=None):
         font_family = self.font_family_dropdown.get()

@@ -5,6 +5,7 @@ try:
 except ImportError:  # pragma: no cover - optional dependency
     qrcode = None
 
+from ..component import theme
 from ..component.DesignStore import save_design
 from devtools import debug
 
@@ -79,14 +80,14 @@ class ImageOperation:
         self.deselect_image()
         self.config.current_selected_image = image_id
         # Draw a bounding box
-        bbox = self.config.canvas.create_rectangle(self.config.canvas.bbox(image_id), outline="blue", width=2)
+        bbox = self.config.canvas.create_rectangle(self.config.canvas.bbox(image_id), outline=theme.ACCENT, width=2)
         handle = self.config.canvas.create_oval(
             self.config.canvas.bbox(image_id)[2] - 5,
             self.config.canvas.bbox(image_id)[3] - 5,
             self.config.canvas.bbox(image_id)[2] + 5,
             self.config.canvas.bbox(image_id)[3] + 5,
-            outline="blue",
-            fill="gray"
+            outline=theme.ACCENT,
+            fill=theme.ACCENT_LIGHT
         )
 
         self.config.image_items[image_id].update({

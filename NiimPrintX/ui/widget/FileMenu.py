@@ -10,19 +10,30 @@ from PIL import Image, ImageTk
 from ..component.DesignStore import save_design
 from devtools import debug
 class FileMenu:
-    def __init__(self, root, parent, config):
-        self.root = root
-        self.parent = parent
-        self.config = config
-        self.create_menu()
+    """The File menu's commands (Save/Open/Exit).
 
-    def create_menu(self):
-        file_menu = tk.Menu(self.parent, tearoff=0)
-        self.parent.add_cascade(label="File", menu=file_menu)
-        file_menu.add_command(label="Save", command=self.save_to_file)
-        file_menu.add_command(label="Open", command=self.load_from_file)
-        file_menu.add_separator()
-        file_menu.add_command(label="Exit", command=self.on_close)
+    The main window is a frameless (overrideredirect) toplevel, and Windows
+    stops rendering a native `root.config(menu=...)` menu bar entirely once
+    that's set (it's non-client-area chrome, same as the title bar). So this
+    builds a standalone popup tk.Menu instead -- popup menus are ordinary
+    floating windows and work fine regardless of the root's frame -- shown
+    via `show(x, y)` from a "File" button in the custom title bar.
+    """
+
+    def __init__(self, root, config):
+        self.root = root
+        self.config = config
+        self.menu = tk.Menu(root, tearoff=0)
+        self.menu.add_command(label="Save", command=self.save_to_file)
+        self.menu.add_command(label="Open", command=self.load_from_file)
+        self.menu.add_separator()
+        self.menu.add_command(label="Exit", command=self.on_close)
+
+    def show(self, x, y):
+        try:
+            self.menu.tk_popup(x, y)
+        finally:
+            self.menu.grab_release()
 
     def on_close(self):
         if messagebox.askokcancel("Quit", "Do you want to quit?"):

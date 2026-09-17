@@ -3,6 +3,8 @@ from tkinter import ttk
 from tkinter import messagebox
 
 from .SpoolmanOperation import SpoolmanOperation
+from ..component import theme
+from ..component.RoundedButton import RoundedButton
 from ..component.DesignStore import save_design
 from NiimPrintX.spoolman.exception import SpoolmanError
 from NiimPrintX.spoolman.label import build_spool_label_image
@@ -23,56 +25,67 @@ class SpoolmanTab:
         self.root = root
         self.parent = parent
         self.config = config
-        self.frame = ttk.Frame(parent)
+        self.frame = tk.Frame(parent, bg=theme.BG_CARD, padx=20, pady=20)
         self.spoolman_op = SpoolmanOperation(root)
         self.spools = {}
         self.include_qr = tk.BooleanVar(value=True)
         self.editing_template = False
         self.create_widgets()
-        self.parent.bind("<<NotebookTabChanged>>", self._on_tab_changed)
         self.load_saved_url()
 
     def create_widgets(self):
-        top = tk.Frame(self.frame)
-        top.pack(side=tk.TOP, fill=tk.X, padx=10, pady=10)
+        bg = theme.BG_CARD
+        label_style = {"bg": bg, "fg": theme.TEXT_MUTED, "font": theme.FONT_LABEL}
 
-        tk.Label(top, text="Spoolman URL").pack(side=tk.LEFT)
+        tk.Label(self.frame, text="Spoolman", bg=bg, fg=theme.TEXT_PRIMARY,
+                 font=theme.FONT_SECTION_TITLE).pack(anchor='w', pady=(0, 14))
+
+        tk.Label(self.frame, text="Spoolman URL", **label_style).pack(anchor='w', pady=(0, 4))
+        url_row = tk.Frame(self.frame, bg=bg)
+        url_row.pack(fill='x', pady=(0, 10))
         self.url_var = tk.StringVar()
-        url_entry = tk.Entry(top, textvariable=self.url_var, width=32)
-        url_entry.pack(side=tk.LEFT, padx=5)
+        url_entry = tk.Entry(url_row, textvariable=self.url_var, highlightthickness=1,
+                             highlightbackground=theme.BORDER, bd=0, bg=theme.BG_FIELD,
+                             fg=theme.TEXT_PRIMARY, font=theme.FONT_BODY)
+        url_entry.pack(side=tk.LEFT, fill='x', expand=True, ipady=4)
         url_entry.bind("<Return>", lambda event: self.connect())
+        RoundedButton(url_row, text="Connect", variant="primary", bg=bg,
+                     command=self.connect).pack(side=tk.LEFT, padx=(6, 0))
 
-        tk.Button(top, text="Connect", command=self.connect).pack(side=tk.LEFT, padx=5)
-
-        tk.Label(top, text="Search").pack(side=tk.LEFT, padx=(20, 0))
+        tk.Label(self.frame, text="Search", **label_style).pack(anchor='w', pady=(0, 4))
+        search_row = tk.Frame(self.frame, bg=bg)
+        search_row.pack(fill='x', pady=(0, 10))
         self.search_var = tk.StringVar()
-        search_entry = tk.Entry(top, textvariable=self.search_var, width=18)
-        search_entry.pack(side=tk.LEFT, padx=5)
+        search_entry = tk.Entry(search_row, textvariable=self.search_var, highlightthickness=1,
+                                highlightbackground=theme.BORDER, bd=0, bg=theme.BG_FIELD,
+                                fg=theme.TEXT_PRIMARY, font=theme.FONT_BODY)
+        search_entry.pack(side=tk.LEFT, fill='x', expand=True, ipady=4)
         search_entry.bind("<Return>", lambda event: self.refresh_spools())
+        RoundedButton(search_row, text="Refresh", variant="outline", bg=bg,
+                     command=self.refresh_spools).pack(side=tk.LEFT, padx=(6, 0))
 
-        tk.Button(top, text="Refresh", command=self.refresh_spools).pack(side=tk.LEFT, padx=5)
+        self.status_label = tk.Label(self.frame, text="Not connected", bg=bg, fg=theme.TEXT_FAINT,
+                                     font=theme.FONT_LABEL, anchor='w', justify='left', wraplength=250)
+        self.status_label.pack(anchor='w', pady=(0, 10))
 
-        self.status_label = tk.Label(self.frame, text="Not connected", fg="gray")
-        self.status_label.pack(side=tk.TOP, anchor="w", padx=10)
-
-        template_row = tk.Frame(self.frame)
-        template_row.pack(side=tk.TOP, fill=tk.X, padx=10, pady=(0, 5))
-
-        self.template_toggle_button = tk.Button(
-            template_row, text="Edit Label Template", command=self.toggle_template_edit
+        self.template_toggle_button = RoundedButton(
+            self.frame, text="Edit label template", variant="outline", bg=bg, command=self.toggle_template_edit
         )
-        self.template_toggle_button.pack(side=tk.LEFT)
+        self.template_toggle_button.pack(anchor='w', pady=(0, 4))
 
-        self.template_status_label = tk.Label(template_row, text="", fg="gray")
-        self.template_status_label.pack(side=tk.LEFT, padx=10)
+        self.template_status_label = tk.Label(self.frame, text="", bg=bg, fg=theme.TEXT_FAINT,
+                                              font=theme.FONT_LABEL, anchor='w', justify='left', wraplength=250)
+        self.template_status_label.pack(anchor='w', pady=(0, 4))
 
-        self.template_tools = tk.Frame(template_row)
-        tk.Label(self.template_tools, text="Insert:").pack(side=tk.LEFT, padx=(10, 2))
+        self.template_tools = tk.Frame(self.frame, bg=bg)
+        tk.Label(self.template_tools, text="Insert:", **label_style).pack(side=tk.LEFT, padx=(0, 4))
+        tools_wrap = tk.Frame(self.template_tools, bg=bg)
+        tools_wrap.pack(side=tk.LEFT, fill='x')
         for label, token in TEMPLATE_TOKENS:
-            tk.Button(
-                self.template_tools, text=label, command=lambda t=token: self.insert_template_token(t)
-            ).pack(side=tk.LEFT, padx=2)
-        tk.Button(self.template_tools, text="QR Code", command=self.insert_template_qr).pack(side=tk.LEFT, padx=(8, 2))
+            RoundedButton(tools_wrap, text=label, variant="secondary", bg=bg,
+                         command=lambda t=token: self.insert_template_token(t)).pack(side=tk.LEFT, padx=(0, 4), pady=2)
+        RoundedButton(tools_wrap, text="QR code", variant="secondary", bg=bg,
+                     command=self.insert_template_qr).pack(side=tk.LEFT, pady=2)
         # template_tools is only packed while editing_template is True (see toggle_template_edit)
 
         columns = ("id", "vendor", "name", "material", "color", "remaining", "location")
@@ -80,21 +93,44 @@ class SpoolmanTab:
             "id": "ID", "vendor": "Vendor", "name": "Filament", "material": "Material",
             "color": "Color", "remaining": "Remaining", "location": "Location",
         }
-        widths = {"id": 50, "vendor": 110, "name": 170, "material": 80, "color": 80, "remaining": 90,
-                  "location": 100}
+        widths = {"id": 30, "vendor": 60, "name": 90, "material": 55, "color": 55, "remaining": 60,
+                  "location": 60}
 
-        self.tree = ttk.Treeview(self.frame, columns=columns, show="headings", selectmode="browse")
+        tree_frame = tk.Frame(self.frame, bg=bg, highlightbackground=theme.BORDER, highlightthickness=1)
+        tree_frame.pack(fill='both', expand=True, pady=(10, 10))
+
+        style = ttk.Style()
+        style.configure("Spoolman.Treeview", background=theme.BG_CARD, fieldbackground=theme.BG_CARD,
+                       foreground=theme.TEXT_PRIMARY, rowheight=24, font=theme.FONT_LABEL)
+        style.configure("Spoolman.Treeview.Heading", background=theme.BG_SIDEBAR, foreground=theme.TEXT_MUTED,
+                       font=theme.FONT_LABEL_BOLD)
+        style.map("Spoolman.Treeview", background=[('selected', theme.ACCENT_LIGHT)],
+                 foreground=[('selected', theme.TEXT_PRIMARY)])
+
+        h_scroll = ttk.Scrollbar(tree_frame, orient='horizontal')
+        v_scroll = ttk.Scrollbar(tree_frame, orient='vertical')
+        self.tree = ttk.Treeview(tree_frame, columns=columns, show="headings", selectmode="browse",
+                                 style="Spoolman.Treeview", height=6,
+                                 xscrollcommand=h_scroll.set, yscrollcommand=v_scroll.set)
         for col in columns:
             self.tree.heading(col, text=headings[col])
             self.tree.column(col, width=widths[col], anchor="w")
-        self.tree.pack(side=tk.TOP, fill=tk.BOTH, expand=True, padx=10, pady=5)
+        h_scroll.config(command=self.tree.xview)
+        v_scroll.config(command=self.tree.yview)
+        v_scroll.pack(side=tk.RIGHT, fill='y')
+        h_scroll.pack(side=tk.BOTTOM, fill='x')
+        self.tree.pack(side=tk.LEFT, fill='both', expand=True)
         self.tree.bind("<<TreeviewSelect>>", self.on_spool_selected)
 
-        bottom = tk.Frame(self.frame)
-        bottom.pack(side=tk.TOP, fill=tk.X, padx=10, pady=10)
-        tk.Checkbutton(bottom, text="Include QR code", variable=self.include_qr,
+        bottom = tk.Frame(self.frame, bg=bg)
+        bottom.pack(fill='x')
+        qr_row = tk.Frame(bottom, bg=bg)
+        qr_row.pack(anchor='w', pady=(0, 8))
+        tk.Checkbutton(qr_row, text="Include QR code", variable=self.include_qr, bg=bg,
+                      fg=theme.TEXT_PRIMARY, font=theme.FONT_BODY,
                       command=self.on_spool_selected).pack(side=tk.LEFT)
-        tk.Button(bottom, text="Generate Label", command=self.generate_label).pack(side=tk.RIGHT)
+        RoundedButton(bottom, text="Generate label", variant="primary", bg=bg,
+                     command=self.generate_label).pack(fill='x')
 
     def load_saved_url(self):
         base_url = spoolman_config.load_settings().get("base_url")
@@ -126,7 +162,7 @@ class SpoolmanTab:
             if not silent:
                 messagebox.showerror("Spoolman", "Connect to a Spoolman server first.")
             return
-        self.status_label.config(text="Loading spools...", fg="gray")
+        self.status_label.config(text="Loading spools...", fg=theme.TEXT_FAINT)
         search = self.search_var.get().strip() or None
         self.spoolman_op.fetch_spools(
             self._on_load_success,
@@ -135,7 +171,7 @@ class SpoolmanTab:
         )
 
     def _on_load_error(self, message, silent=False):
-        self.status_label.config(text=f"Error: {message}", fg="red")
+        self.status_label.config(text=f"Error: {message}", fg=theme.DANGER_TEXT)
         if not silent:
             messagebox.showerror("Spoolman", message)
 
@@ -151,7 +187,7 @@ class SpoolmanTab:
                 spool["id"], vendor, filament.get("name", ""), filament.get("material", ""),
                 filament.get("color_hex") or "-", remaining_str, spool.get("location") or "",
             ))
-        self.status_label.config(text=f"{len(spools)} spool(s) loaded", fg="green")
+        self.status_label.config(text=f"{len(spools)} spool(s) loaded", fg=theme.SUCCESS)
         self.root.canvas_selector.clear_static_preview()
 
     def _selected_spool(self):
@@ -200,7 +236,15 @@ class SpoolmanTab:
         except ValueError as e:
             messagebox.showerror("Spoolman", str(e))
             return
-        self.root.print_option.show_image_preview(image)
+        self.root.print_option.show_image_preview(image, name=self._spool_display_name(spool))
+
+    @staticmethod
+    def _spool_display_name(spool):
+        filament = spool.get("filament") or {}
+        vendor = (filament.get("vendor") or {}).get("name") or ""
+        name = filament.get("name") or ""
+        label = " ".join(part for part in (vendor, name) if part).strip()
+        return label or f"Spool #{spool.get('id')}"
 
     def on_spool_selected(self, event=None):
         if self.editing_template:
@@ -227,18 +271,18 @@ class SpoolmanTab:
         self.root.canvas_selector.update_canvas_size()
 
         if self.editing_template:
-            self.template_toggle_button.config(text="Done Editing Template")
-            self.template_tools.pack(side=tk.LEFT)
-            self.root.tab_control.select(self.root.text_tab.frame)
+            self.template_toggle_button.config(text="Done editing template")
+            self.template_tools.pack(anchor='w', pady=(0, 10))
         else:
-            self.template_toggle_button.config(text="Edit Label Template")
+            self.template_toggle_button.config(text="Edit label template")
             self.template_tools.pack_forget()
         self._update_template_status()
-        if not self.editing_template:
-            self.on_spool_selected()
+        # Jumps into/out of the Design section and shows/hides the token +
+        # "Done editing template" toolbar there -- see LabelPrinterApp.set_template_editing.
+        self.root.set_template_editing(self.editing_template)
 
     def insert_template_token(self, token):
-        self.root.tab_control.select(self.root.text_tab.frame)
+        self.root.select_design_subtab("text")
         content_entry = self.root.text_tab.content_entry
         content_entry.insert(tk.INSERT, f"{{{token}}}")
         content_entry.focus_set()
@@ -262,15 +306,14 @@ class SpoolmanTab:
         else:
             self.template_status_label.config(text=f"No template for {device.upper()} / {label_size} (using automatic layout)")
 
-    def _on_tab_changed(self, event=None):
-        try:
-            current = self.parent.select()
-        except tk.TclError:
-            return
-        if current == str(self.frame):
-            self._update_template_status()
-            self.on_spool_selected()
-        elif not self.editing_template:
-            # Leaving the Spoolman tab (and not mid-template-edit): drop the preview
-            # overlay so Text/Icon show the real editable canvas underneath again.
+    def on_show(self):
+        """Called by the app when the Spoolman section becomes active."""
+        self._update_template_status()
+        self.on_spool_selected()
+
+    def on_hide(self):
+        """Called by the app when leaving the Spoolman section (and not mid
+        template-edit): drop the preview overlay so Design shows the real
+        editable canvas underneath again."""
+        if not self.editing_template:
             self.root.canvas_selector.clear_static_preview()

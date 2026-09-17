@@ -3,6 +3,7 @@ import tkinter.messagebox as messagebox
 from PIL import ImageTk
 
 from NiimPrintX.nimmy.text_render import render_text_image
+from ..component import theme
 from ..component.DesignStore import save_design
 from devtools import debug
 
@@ -97,12 +98,12 @@ class TextOperation:
 
     def draw_bounding_box(self, event, text_id):
         bbox = self.config.canvas.create_rectangle(self.config.canvas.bbox(text_id),
-                                                   outline="blue", width=2, tags="bounding_box")
+                                                   outline=theme.ACCENT, width=2, tags="bounding_box")
         handle = self.config.canvas.create_oval(self.config.canvas.bbox(text_id)[2] - 5,
                                                 self.config.canvas.bbox(text_id)[3] - 5,
                                                 self.config.canvas.bbox(text_id)[2] + 5,
                                                 self.config.canvas.bbox(text_id)[3] + 5,
-                                                outline="blue", fill="gray")
+                                                outline=theme.ACCENT, fill=theme.ACCENT_LIGHT)
         self.config.text_items[text_id].update({
             "bbox": bbox,
             "handle": handle,
